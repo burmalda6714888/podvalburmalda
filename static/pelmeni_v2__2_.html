@@ -1333,36 +1333,12 @@ class SnakeGame {
   }
 }
 
-// ===== ТОП ОЧКОВ ЗМЕЙКИ (глобальный через window.storage) =====
-async function _loadLeaderboard() {
-  try {
-    const stored = await window.storage.get('snake-leaderboard', true);
-    if (stored && stored.value) return JSON.parse(stored.value);
-  } catch(e) {}
-  return [];
-}
-
+// ===== ТОП ОЧКОВ ЗМЕЙКИ (через серверный API) =====
 async function saveSnakeScore(score) {
   if (score <= 0) return;
   try {
-    let leaderboard = await _loadLeaderboard();
-    const idx = leaderboard.findIndex(e => e.name === currentUser);
-    let updated = false;
-    if (idx >= 0) {
-      if (score > leaderboard[idx].score) {
-        leaderboard[idx].score = score;
-        updated = true;
-      }
-    } else {
-      leaderboard.push({ name: currentUser, score });
-      updated = true;
-    }
-    if (updated) {
-      leaderboard.sort((a, b) => b.score - a.score);
-      leaderboard = leaderboard.slice(0, 10);
-      await window.storage.set('snake-leaderboard', JSON.stringify(leaderboard), true);
-      renderSnakeLeaderboard();
-    }
+    await api('POST', '/snake/score', { score });
+    renderSnakeLeaderboard();
   } catch(e) { console.error('Ошибка сохранения рекорда:', e); }
 }
 
@@ -1370,7 +1346,7 @@ async function renderSnakeLeaderboard() {
   const els = [document.getElementById('snakeLeaderboard'), document.getElementById('snakeLeaderboardModal')].filter(Boolean);
   if (!els.length) return;
   try {
-    const leaderboard = await _loadLeaderboard();
+    const leaderboard = await api('GET', '/snake/leaderboard');
     const medals = ['gold','silver','bronze'];
     const html = !leaderboard.length
       ? '<div class="snake-top-empty">Рекордов пока нет</div>'
@@ -1529,40 +1505,15 @@ async function publishTrack() {
   btn.textContent = 'Публикация...';
 
   try {
-    // Списать П-баллы с сервера
-    const spendRes = await api('POST', '/pcoins/spend', { amount: cost });
-    pCoins = spendRes.pcoins;
+    const res = await api('POST', '/music', {
+      title,
+      artist,
+      has_gif: pendingCoverIsGif,
+      audio_data: pendingTrackData || null,
+      cover_data: pendingCoverData || null,
+    });
+    pCoins = res.pcoins;
     updatePCoins();
-    document.getElementById('musicModalCoins').textContent = pCoins;
-
-    // Сгенерировать ID трека
-    const trackId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}) + ', ' + now.toLocaleDateString('ru-RU');
-
-    const trackMeta = { id: trackId, title, artist, author: currentUser, time: timeStr, hasGif: pendingCoverIsGif, hasCover: !!pendingCoverData };
-
-    // Сохранить метаданные треков
-    let tracks = [];
-    try {
-      const stored = await window.storage.get('music-tracks', true);
-      if (stored && stored.value) tracks = JSON.parse(stored.value);
-    } catch(e) {}
-    tracks.unshift(trackMeta);
-    if (tracks.length > 50) tracks = tracks.slice(0, 50);
-    await window.storage.set('music-tracks', JSON.stringify(tracks), true);
-
-    // Сохранить аудио
-    if (pendingTrackData) {
-      try { await window.storage.set('music-audio-' + trackId, pendingTrackData, true); }
-      catch(e) { console.warn('Аудио слишком большое для хранилища:', e); }
-    }
-    // Сохранить обложку
-    if (pendingCoverData) {
-      try { await window.storage.set('music-cover-' + trackId, pendingCoverData, true); }
-      catch(e) { console.warn('Обложка слишком большая для хранилища:', e); }
-    }
-
     closeMusicModal();
     await loadMusicTracks();
   } catch(e) {
@@ -1578,39 +1529,31 @@ async function loadMusicTracks() {
   const el = document.getElementById('musicTracksList');
   el.innerHTML = '<div class="music-empty">⏳ Загрузка треков...</div>';
   try {
-    const stored = await window.storage.get('music-tracks', true);
-    if (!stored || !stored.value) {
-      el.innerHTML = '<div class="music-empty">🎵 Треков пока нет — будь первым!</div>';
-      return;
-    }
-    const tracks = JSON.parse(stored.value);
-    if (!tracks.length) {
+    const tracks = await api('GET', '/music');
+    if (!tracks || !tracks.length) {
       el.innerHTML = '<div class="music-empty">🎵 Треков пока нет — будь первым!</div>';
       return;
     }
     renderMusicTracks(tracks);
-    // Подгружаем обложки и аудио для каждого трека
+    // Подгружаем обложки (уже в ответе) и аудио (отдельный запрос)
     for (const track of tracks) {
       try {
-        if (track.hasCover) {
-          const coverStored = await window.storage.get('music-cover-' + track.id, true);
-          if (coverStored && coverStored.value) {
-            const cardEl = document.getElementById('music-card-' + track.id);
-            if (cardEl) {
-              const img = cardEl.querySelector('.music-cover-img');
-              const ph = cardEl.querySelector('.music-cover-placeholder');
-              if (img) { img.src = coverStored.value; img.style.display = 'block'; }
-              if (ph) ph.style.display = 'none';
-            }
+        if (track.cover_data) {
+          const cardEl = document.getElementById('music-card-' + track.id);
+          if (cardEl) {
+            const img = cardEl.querySelector('.music-cover-img');
+            const ph = cardEl.querySelector('.music-cover-placeholder');
+            if (img) { img.src = track.cover_data; img.style.display = 'block'; }
+            if (ph) ph.style.display = 'none';
           }
         }
-        const audioStored = await window.storage.get('music-audio-' + track.id, true);
-        if (audioStored && audioStored.value) {
+        const audioRes = await api('GET', '/music/' + track.id + '/audio');
+        if (audioRes && audioRes.audio_data) {
           const cardEl = document.getElementById('music-card-' + track.id);
           if (cardEl) {
             const audio = cardEl.querySelector('audio');
             if (audio) {
-              audio.src = audioStored.value;
+              audio.src = audioRes.audio_data;
               audio.removeAttribute('disabled');
             }
           }
