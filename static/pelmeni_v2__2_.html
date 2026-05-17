@@ -281,6 +281,57 @@ a:hover { text-decoration: underline; }
   .auth-logo { font-size: 28px; }
   .header-logo { font-size: 14px; }
 }
+
+/* ===== ПОДВАЛ МЬЮЗИК ===== */
+.music-section { display: flex; flex-direction: column; gap: 8px; }
+.music-header-bar { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.music-section-title { font-size: 14px; font-weight: 700; color: #7b3fa0; }
+.music-section-sub { font-size: 11px; color: #999; margin-top: 2px; }
+.btn-publish-track { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); border: 1px solid #5a2e80; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: filter 0.15s; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.btn-publish-track:hover { filter: brightness(1.1); }
+.music-track-card { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; animation: fadeIn 0.3s ease; }
+.music-track-head { padding: 10px 12px; display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #fdf8ff, #f8f0ff); border-bottom: 1px solid #ead9f5; }
+.music-cover { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid #d3d9e0; flex-shrink: 0; }
+.music-cover-placeholder { width: 56px; height: 56px; border-radius: 4px; background: linear-gradient(135deg, #a855c9, #7b3fa0); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(123,63,160,0.3); }
+.music-meta { flex: 1; min-width: 0; }
+.music-title { font-size: 13px; font-weight: 700; color: #2b2b2b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.music-artist { font-size: 12px; color: #7b3fa0; font-weight: 700; margin-bottom: 3px; }
+.music-pub-info { font-size: 10px; color: #bbb; }
+.music-gif-badge { display: inline-block; background: linear-gradient(90deg, #a855c9, #e879f9); color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 6px; margin-left: 4px; vertical-align: middle; letter-spacing: 0.05em; }
+.music-player-wrap { padding: 8px 12px 10px; background: #fdfaff; }
+.music-player-wrap audio { width: 100%; height: 32px; }
+.music-empty { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 20px; text-align: center; color: #aaa; font-size: 13px; }
+
+/* МЬЮЗИК МОДАЛКА */
+.music-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 510; display: none; align-items: center; justify-content: center; }
+.music-modal-overlay.open { display: flex; }
+.music-modal { background: #fff; border-radius: 6px; width: 440px; max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.32); animation: fadeIn 0.2s ease; }
+.music-modal-header { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 2; }
+.music-modal-title { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+.music-modal-close { color: rgba(255,255,255,0.75); font-size: 18px; cursor: pointer; background: none; border: none; line-height: 1; }
+.music-modal-close:hover { color: #fff; }
+.music-modal-body { padding: 16px 20px; }
+.music-modal-body label { display: block; font-size: 12px; font-weight: 700; color: #555; margin-bottom: 5px; margin-top: 14px; }
+.music-modal-body label:first-child { margin-top: 0; }
+.music-modal-body input[type="text"] { width: 100%; border: 1px solid #c4c4c4; border-radius: 4px; padding: 8px 12px; font-size: 13px; color: #333; outline: none; font-family: Arial, sans-serif; transition: border 0.2s; }
+.music-modal-body input[type="text"]:focus { border-color: #7b3fa0; box-shadow: 0 0 0 2px rgba(123,63,160,0.12); }
+.music-file-zone { border: 2px dashed #c4c4c4; border-radius: 4px; padding: 11px 12px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-size: 12px; color: #888; margin-top: 2px; user-select: none; }
+.music-file-zone:hover { border-color: #7b3fa0; background: #faf5ff; color: #7b3fa0; }
+.music-file-zone.has-file { border-color: #7b3fa0; background: #faf5ff; color: #7b3fa0; font-weight: 700; }
+.music-cost-box { background: linear-gradient(135deg, #fdf8ff, #f8f0ff); border: 1px solid #d4a0e8; border-radius: 4px; padding: 9px 12px; font-size: 12px; color: #6a2e90; margin-top: 14px; line-height: 1.7; }
+.music-cost-box b { color: #7b3fa0; font-size: 13px; }
+.music-modal-error { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; color: #c0392b; font-size: 12px; padding: 8px 12px; margin-top: 10px; display: none; }
+.music-modal-error.show { display: block; }
+.music-modal-footer { padding: 12px 20px 16px; display: flex; gap: 8px; border-top: 1px solid #f0f0f0; }
+.btn-publish-confirm { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); border: 1px solid #5a2e80; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 20px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); transition: filter 0.15s; flex: 1; }
+.btn-publish-confirm:hover { filter: brightness(1.08); }
+.btn-publish-confirm:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
+.music-cover-preview { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; border: 1px solid #d3d9e0; display: none; margin-top: 8px; }
+.music-cover-preview.show { display: block; }
+@media (max-width: 700px) {
+  .music-modal { width: calc(100% - 24px); margin: 12px; }
+  .music-header-bar { flex-direction: column; align-items: flex-start; }
+}
 </style>
 </head>
 <body>
@@ -360,6 +411,7 @@ a:hover { text-decoration: underline; }
         <a class="active" id="menuNews" href="javascript:void(0)" onclick="showFeed()">Мои Новости</a>
         <a href="javascript:void(0)" onclick="openAdModal()">Купить рекламу</a>
         <a id="menuGames" href="javascript:void(0)" onclick="showGames()" style="color:#4a76a8;font-weight:700;">🎮 Подвал-Игры</a>
+        <a id="menuMusic" href="javascript:void(0)" onclick="showMusic()" style="color:#7b3fa0;font-weight:700;">🎵 Подвал Мьюзик</a>
       </div>
       <div class="sidebar-ad">
         <div class="sad-header">Объявление</div>
@@ -427,6 +479,19 @@ a:hover { text-decoration: underline; }
           </div>
         </div>
       </div>
+      <!-- ПОДВАЛ МЬЮЗИК -->
+      <div id="musicList" class="music-section" style="display:none;">
+        <div class="music-header-bar">
+          <div>
+            <div class="music-section-title">🎵 Подвал Мьюзик</div>
+            <div class="music-section-sub">Публикация трека — 3 П-Балла · GIF обложка — +3 П-Балла</div>
+          </div>
+          <button class="btn-publish-track" onclick="openMusicModal()">🎵 Опубликовать трек</button>
+        </div>
+        <div id="musicTracksList">
+          <div class="music-empty">Загрузка треков...</div>
+        </div>
+      </div>
     </div>
 
     <!-- ПРАВЫЙ САЙДБАР -->
@@ -435,6 +500,46 @@ a:hover { text-decoration: underline; }
         <div class="widget-title">Онлайн</div>
         <div class="widget-body" id="onlineList"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- МЬЮЗИК МОДАЛКА -->
+<div class="music-modal-overlay" id="musicModal">
+  <div class="music-modal">
+    <div class="music-modal-header">
+      <span class="music-modal-title">🎵 Опубликовать трек</span>
+      <button class="music-modal-close" onclick="closeMusicModal()">×</button>
+    </div>
+    <div class="music-modal-body">
+      <label>Аудио файл трека *</label>
+      <div class="music-file-zone" id="trackFileZone" onclick="document.getElementById('trackFileInput').click()">
+        📂 Нажми чтобы выбрать аудио (MP3, OGG, WAV)
+      </div>
+      <input type="file" id="trackFileInput" accept="audio/*" style="display:none" onchange="onTrackFile(this)">
+
+      <label>Название трека *</label>
+      <input type="text" id="trackTitle" placeholder="Введи название трека" maxlength="80" />
+
+      <label>Исполнитель *</label>
+      <input type="text" id="trackArtist" placeholder="Имя исполнителя" maxlength="80" />
+
+      <label>Обложка (PNG / JPEG — бесплатно · GIF — +3 П-Балла)</label>
+      <div class="music-file-zone" id="coverFileZone" onclick="document.getElementById('coverFileInput').click()">
+        🖼️ Нажми чтобы выбрать обложку (необязательно)
+      </div>
+      <input type="file" id="coverFileInput" accept="image/png,image/jpeg,image/gif" style="display:none" onchange="onTrackCover(this)">
+      <img class="music-cover-preview" id="coverPreview" src="" alt="обложка">
+
+      <div class="music-cost-box">
+        Стоимость публикации: <b id="musicCostDisplay">3 П-Балла</b><br>
+        У вас сейчас: <b id="musicModalCoins">0</b> П-Баллов
+      </div>
+      <div class="music-modal-error" id="musicError"></div>
+    </div>
+    <div class="music-modal-footer">
+      <button class="btn-publish-confirm" id="btnPublishTrack" onclick="publishTrack()">Опубликовать</button>
+      <button class="btn-cancel" onclick="closeMusicModal()">Отмена</button>
     </div>
   </div>
 </div>
@@ -1033,21 +1138,25 @@ function removeAttach() {
   document.getElementById('attachPreview').classList.remove('show');
 }
 
-// ===== МЕНЮ: ЛЕНТА / ИГРЫ =====
+// ===== МЕНЮ: ЛЕНТА / ИГРЫ / МЬЮЗИК =====
 function showFeed() {
   document.getElementById('mainFeedWrap').style.display = '';
   document.getElementById('postsList').style.display = '';
   document.getElementById('gamesList').style.display = 'none';
+  document.getElementById('musicList').style.display = 'none';
   document.getElementById('menuNews').classList.add('active');
   document.getElementById('menuGames').classList.remove('active');
+  document.getElementById('menuMusic').classList.remove('active');
 }
 
 function showGames() {
   document.getElementById('mainFeedWrap').style.display = 'none';
   document.getElementById('postsList').style.display = 'none';
   document.getElementById('gamesList').style.display = 'flex';
+  document.getElementById('musicList').style.display = 'none';
   document.getElementById('menuGames').classList.add('active');
   document.getElementById('menuNews').classList.remove('active');
+  document.getElementById('menuMusic').classList.remove('active');
   renderSnakeLeaderboard();
 }
 
@@ -1305,6 +1414,233 @@ function dpadPress(dir) {
     else dpadPress(dy > 0 ? 'down' : 'up');
   }, { passive: true });
 })();
+
+// ===== ПОДВАЛ МЬЮЗИК =====
+const MUSIC_BASE_COST = 3;
+const MUSIC_GIF_EXTRA = 3;
+let pendingTrackData = null;
+let pendingCoverData = null;
+let pendingCoverIsGif = false;
+
+function showMusic() {
+  document.getElementById('mainFeedWrap').style.display = 'none';
+  document.getElementById('postsList').style.display = 'none';
+  document.getElementById('gamesList').style.display = 'none';
+  document.getElementById('musicList').style.display = 'flex';
+  document.getElementById('menuMusic').classList.add('active');
+  document.getElementById('menuNews').classList.remove('active');
+  document.getElementById('menuGames').classList.remove('active');
+  loadMusicTracks();
+}
+
+function openMusicModal() {
+  pendingTrackData = null;
+  pendingCoverData = null;
+  pendingCoverIsGif = false;
+  document.getElementById('trackFileInput').value = '';
+  document.getElementById('coverFileInput').value = '';
+  document.getElementById('trackTitle').value = '';
+  document.getElementById('trackArtist').value = '';
+  const tzOne = document.getElementById('trackFileZone');
+  tzOne.textContent = '📂 Нажми чтобы выбрать аудио (MP3, OGG, WAV)';
+  tzOne.classList.remove('has-file');
+  const tzTwo = document.getElementById('coverFileZone');
+  tzTwo.textContent = '🖼️ Нажми чтобы выбрать обложку (необязательно)';
+  tzTwo.classList.remove('has-file');
+  document.getElementById('coverPreview').classList.remove('show');
+  document.getElementById('musicError').classList.remove('show');
+  document.getElementById('musicModalCoins').textContent = pCoins;
+  updateMusicCostDisplay();
+  document.getElementById('musicModal').classList.add('open');
+}
+
+function closeMusicModal() {
+  document.getElementById('musicModal').classList.remove('open');
+}
+
+function updateMusicCostDisplay() {
+  const cost = MUSIC_BASE_COST + (pendingCoverIsGif ? MUSIC_GIF_EXTRA : 0);
+  const label = pendingCoverIsGif
+    ? `3 + 3 (GIF) = <b style="font-size:14px">${cost} П-Баллов</b>`
+    : `<b style="font-size:14px">${cost} П-Балла</b>`;
+  document.getElementById('musicCostDisplay').innerHTML = label;
+}
+
+function onTrackFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const zone = document.getElementById('trackFileZone');
+  zone.textContent = '⏳ Загрузка файла...';
+  zone.classList.remove('has-file');
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingTrackData = e.target.result;
+    zone.textContent = '✅ ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' МБ)';
+    zone.classList.add('has-file');
+  };
+  reader.onerror = () => {
+    zone.textContent = '❌ Ошибка загрузки файла';
+    pendingTrackData = null;
+  };
+  reader.readAsDataURL(file);
+}
+
+function onTrackCover(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const isGif = file.type === 'image/gif';
+  pendingCoverIsGif = isGif;
+  const zone = document.getElementById('coverFileZone');
+  zone.textContent = '⏳ Загрузка обложки...';
+  zone.classList.remove('has-file');
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingCoverData = e.target.result;
+    zone.textContent = '✅ ' + file.name + (isGif ? ' — GIF +3 П-Балла ✨' : '');
+    zone.classList.add('has-file');
+    const preview = document.getElementById('coverPreview');
+    preview.src = pendingCoverData;
+    preview.classList.add('show');
+    updateMusicCostDisplay();
+    document.getElementById('musicModalCoins').textContent = pCoins;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function publishTrack() {
+  const title = document.getElementById('trackTitle').value.trim();
+  const artist = document.getElementById('trackArtist').value.trim();
+  const errEl = document.getElementById('musicError');
+  errEl.classList.remove('show');
+
+  if (!pendingTrackData) { errEl.textContent = 'Выбери аудио файл!'; errEl.classList.add('show'); return; }
+  if (!title) { errEl.textContent = 'Введи название трека!'; errEl.classList.add('show'); return; }
+  if (!artist) { errEl.textContent = 'Введи имя исполнителя!'; errEl.classList.add('show'); return; }
+
+  const cost = MUSIC_BASE_COST + (pendingCoverIsGif ? MUSIC_GIF_EXTRA : 0);
+  if (pCoins < cost) {
+    errEl.textContent = `Недостаточно П-Баллов! Нужно ${cost}, у тебя ${pCoins}.`;
+    errEl.classList.add('show');
+    return;
+  }
+
+  const btn = document.getElementById('btnPublishTrack');
+  btn.disabled = true;
+  btn.textContent = 'Публикация...';
+
+  try {
+    // Списать П-баллы с сервера
+    const spendRes = await api('POST', '/pcoins/spend', { amount: cost });
+    pCoins = spendRes.pcoins;
+    updatePCoins();
+    document.getElementById('musicModalCoins').textContent = pCoins;
+
+    // Сгенерировать ID трека
+    const trackId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}) + ', ' + now.toLocaleDateString('ru-RU');
+
+    const trackMeta = { id: trackId, title, artist, author: currentUser, time: timeStr, hasGif: pendingCoverIsGif, hasCover: !!pendingCoverData };
+
+    // Сохранить метаданные треков
+    let tracks = [];
+    try {
+      const stored = await window.storage.get('music-tracks', true);
+      if (stored && stored.value) tracks = JSON.parse(stored.value);
+    } catch(e) {}
+    tracks.unshift(trackMeta);
+    if (tracks.length > 50) tracks = tracks.slice(0, 50);
+    await window.storage.set('music-tracks', JSON.stringify(tracks), true);
+
+    // Сохранить аудио
+    if (pendingTrackData) {
+      try { await window.storage.set('music-audio-' + trackId, pendingTrackData, true); }
+      catch(e) { console.warn('Аудио слишком большое для хранилища:', e); }
+    }
+    // Сохранить обложку
+    if (pendingCoverData) {
+      try { await window.storage.set('music-cover-' + trackId, pendingCoverData, true); }
+      catch(e) { console.warn('Обложка слишком большая для хранилища:', e); }
+    }
+
+    closeMusicModal();
+    await loadMusicTracks();
+  } catch(e) {
+    errEl.textContent = e.message || 'Ошибка публикации';
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Опубликовать';
+  }
+}
+
+async function loadMusicTracks() {
+  const el = document.getElementById('musicTracksList');
+  el.innerHTML = '<div class="music-empty">⏳ Загрузка треков...</div>';
+  try {
+    const stored = await window.storage.get('music-tracks', true);
+    if (!stored || !stored.value) {
+      el.innerHTML = '<div class="music-empty">🎵 Треков пока нет — будь первым!</div>';
+      return;
+    }
+    const tracks = JSON.parse(stored.value);
+    if (!tracks.length) {
+      el.innerHTML = '<div class="music-empty">🎵 Треков пока нет — будь первым!</div>';
+      return;
+    }
+    renderMusicTracks(tracks);
+    // Подгружаем обложки и аудио для каждого трека
+    for (const track of tracks) {
+      try {
+        if (track.hasCover) {
+          const coverStored = await window.storage.get('music-cover-' + track.id, true);
+          if (coverStored && coverStored.value) {
+            const cardEl = document.getElementById('music-card-' + track.id);
+            if (cardEl) {
+              const img = cardEl.querySelector('.music-cover-img');
+              const ph = cardEl.querySelector('.music-cover-placeholder');
+              if (img) { img.src = coverStored.value; img.style.display = 'block'; }
+              if (ph) ph.style.display = 'none';
+            }
+          }
+        }
+        const audioStored = await window.storage.get('music-audio-' + track.id, true);
+        if (audioStored && audioStored.value) {
+          const cardEl = document.getElementById('music-card-' + track.id);
+          if (cardEl) {
+            const audio = cardEl.querySelector('audio');
+            if (audio) {
+              audio.src = audioStored.value;
+              audio.removeAttribute('disabled');
+            }
+          }
+        }
+      } catch(e) {}
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="music-empty">❌ Ошибка загрузки треков</div>';
+  }
+}
+
+function renderMusicTracks(tracks) {
+  const el = document.getElementById('musicTracksList');
+  el.innerHTML = tracks.map(t => `
+    <div class="music-track-card" id="music-card-${t.id}">
+      <div class="music-track-head">
+        <div class="music-cover-placeholder">🎵</div>
+        <img class="music-cover-img music-cover" src="" alt="обложка" style="display:none">
+        <div class="music-meta">
+          <div class="music-title">${escHtml(t.title)}</div>
+          <div class="music-artist">🎤 ${escHtml(t.artist)}</div>
+          <div class="music-pub-info">Загрузил: ${escHtml(t.author)} · ${escHtml(t.time)}${t.hasGif ? '<span class="music-gif-badge">GIF</span>' : ''}</div>
+        </div>
+      </div>
+      <div class="music-player-wrap">
+        <audio controls preload="none" disabled style="width:100%">Ваш браузер не поддерживает аудио</audio>
+      </div>
+    </div>
+  `).join('');
+}
 
 // ===== АВТОВОССТАНОВЛЕНИЕ СЕССИИ =====
 (async function restoreSession() {
