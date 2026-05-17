@@ -881,58 +881,100 @@ function renderPostMedia(src) {
   return `<img class="post-img" src="${src}" alt="медиа">`;
 }
 
+function buildPostEl(p) {
+  const isOpen = openComments.has(p.id);
+  const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
+  const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
+  const div = document.createElement('div');
+  div.className = 'post';
+  div.id = 'post-' + p.id;
+  div.innerHTML = `
+    <div class="post-head">
+      <div class="post-ava">${escHtml(p.author[0].toUpperCase())}</div>
+      <div class="post-info">
+        <div class="post-author">${escHtml(p.author)}</div>
+        <div class="post-time">${escHtml(p.time)}</div>
+      </div>
+    </div>
+    <div class="post-body">
+      ${p.text ? `<div class="post-text">${escHtml(p.text)}</div>` : ''}
+      ${p.photo ? renderPostMedia(p.photo) : ''}
+    </div>
+    <div class="post-actions">
+      <span class="post-action" onclick="toggleComments(${p.id})">Комментарии (${(p.comments||[]).length})</span>
+      <span class="post-action">Поделиться</span>
+      <span class="${likeClass}" onclick="toggleLike(${p.id})">${likedByMe ? '\u2665' : '\u2661'}${p.likes>0?' '+p.likes:''}</span>
+    </div>
+    <div class="comments-section${isOpen ? ' open' : ''}" id="comments-${p.id}">
+      <div id="comments-list-${p.id}">${renderCommentsList(p)}</div>
+      <div class="comment-input-row">
+        <input type="text" id="comment-input-${p.id}" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter')sendComment(${p.id})"/>
+        <button class="btn-comment-send" onclick="sendComment(${p.id})">Отправить</button>
+      </div>
+    </div>`;
+  return div;
+}
+
+function patchPostEl(p) {
+  // Обновляет только лайки и счётчик комментов — тело поста (видео/гиф) не трогает
+  const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
+  const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
+
+  const likeEl = document.querySelector(`#post-${p.id} .post-like-count`);
+  if (likeEl) {
+    likeEl.textContent = (likedByMe ? '\u2665' : '\u2661') + (p.likes > 0 ? ' ' + p.likes : '');
+    likeEl.className = likeClass;
+    likeEl.onclick = () => toggleLike(p.id);
+  }
+
+  const commentBtn = document.querySelector(`#post-${p.id} .post-action`);
+  if (commentBtn) commentBtn.textContent = `Комментарии (${(p.comments||[]).length})`;
+
+  // Если секция комментов открыта — обновляем список
+  if (openComments.has(p.id)) {
+    const cl = document.getElementById('comments-list-' + p.id);
+    if (cl) cl.innerHTML = renderCommentsList(p);
+  }
+}
+
 function renderPosts() {
   const list = document.getElementById('postsList');
-
-  // Сохраняем текст из всех открытых инпутов комментариев перед перерисовкой
-  const savedInputs = {};
-  list.querySelectorAll('input[id^="comment-input-"]').forEach(inp => {
-    if (inp.value) savedInputs[inp.id] = inp.value;
-  });
 
   if (!allPosts.length) {
     list.innerHTML = '<div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:20px;text-align:center;color:#aaa;font-size:13px;">Пока нет постов. Напиши первым!</div>';
     return;
   }
-  list.innerHTML = allPosts.map(p => {
-    const isOpen = openComments.has(p.id);
-    const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
-    const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
-    return `
-    <div class="post" id="post-${p.id}">
-      <div class="post-head">
-        <div class="post-ava">${escHtml(p.author[0].toUpperCase())}</div>
-        <div class="post-info">
-          <div class="post-author">${escHtml(p.author)}</div>
-          <div class="post-time">${escHtml(p.time)}</div>
-        </div>
-      </div>
-      <div class="post-body">
-        ${p.text ? `<div class="post-text">${escHtml(p.text)}</div>` : ''}
-        ${p.photo ? renderPostMedia(p.photo) : ''}
-      </div>
-      <div class="post-actions">
-        <span class="post-action" onclick="toggleComments(${p.id})">Комментарии (${(p.comments||[]).length})</span>
-        <span class="post-action">Поделиться</span>
-        <span class="${likeClass}" onclick="toggleLike(${p.id})">${likedByMe ? '\u2665' : '\u2661'}${p.likes>0?' '+p.likes:''}</span>
-      </div>
-      <div class="comments-section${isOpen ? ' open' : ''}" id="comments-${p.id}">
-        <div id="comments-list-${p.id}">${renderCommentsList(p)}</div>
-        <div class="comment-input-row">
-          <input type="text" id="comment-input-${p.id}" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter')sendComment(${p.id})"/>
-          <button class="btn-comment-send" onclick="sendComment(${p.id})">Отправить</button>
-        </div>
-      </div>
-    </div>
-  `}).join('');
 
-  // Восстанавливаем сохранённый текст в инпутах
-  Object.entries(savedInputs).forEach(([id, val]) => {
-    const inp = document.getElementById(id);
-    if (inp) inp.value = val;
+  // Убираем заглушку "нет постов" если она есть
+  const stub = list.querySelector('div:not(.post)');
+  if (stub) stub.remove();
+
+  const newIds = new Set(allPosts.map(p => p.id));
+
+  // Удаляем посты которых больше нет на сервере
+  list.querySelectorAll('.post[id^="post-"]').forEach(el => {
+    const id = parseInt(el.id.replace('post-', ''));
+    if (!newIds.has(id)) el.remove();
+  });
+
+  // Добавляем новые / патчим существующие, сохраняем порядок
+  allPosts.forEach((p, i) => {
+    const existing = document.getElementById('post-' + p.id);
+    if (!existing) {
+      const newEl = buildPostEl(p);
+      const allEls = list.querySelectorAll('.post[id^="post-"]');
+      if (allEls.length === 0 || i === 0) {
+        list.prepend(newEl);
+      } else {
+        // Вставить после предыдущего поста в списке данных
+        const prevPost = document.getElementById('post-' + allPosts[i - 1].id);
+        if (prevPost) prevPost.after(newEl); else list.append(newEl);
+      }
+    } else {
+      patchPostEl(p);
+    }
   });
 }
-
 function renderCommentsList(p) {
   const comments = p.comments || [];
   if (!comments.length) return '<div class="no-comments">Комментариев пока нет</div>';
