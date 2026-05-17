@@ -92,6 +92,19 @@ snake_scores_table = sqlalchemy.Table(
     sqlalchemy.Column("updated_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
 )
 
+music_tracks_table = sqlalchemy.Table(
+    "music_tracks", metadata,
+    sqlalchemy.Column("id", sqlalchemy.String(64), primary_key=True),
+    sqlalchemy.Column("title", sqlalchemy.String(120), nullable=False),
+    sqlalchemy.Column("artist", sqlalchemy.String(120), nullable=False),
+    sqlalchemy.Column("author", sqlalchemy.String(64), nullable=False),
+    sqlalchemy.Column("time_str", sqlalchemy.String(64), nullable=False),
+    sqlalchemy.Column("has_gif", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("audio_data", sqlalchemy.Text, nullable=True),
+    sqlalchemy.Column("cover_data", sqlalchemy.Text, nullable=True),
+    sqlalchemy.Column("created_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
+)
+
 engine = sqlalchemy.create_engine(DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://"))
 metadata.create_all(engine)
 
@@ -255,6 +268,14 @@ class TimeoutRequest(BaseModel):
 
 class DeletePostRequest(BaseModel):
     pass  # requester берётся из токена
+
+
+class MusicTrackCreate(BaseModel):
+    title: str
+    artist: str
+    has_gif: bool = False
+    audio_data: Optional[str] = None
+    cover_data: Optional[str] = None
 
 
 # ===== AUTH =====
@@ -680,3 +701,73 @@ async def get_snake_leaderboard():
         snake_scores_table.select().order_by(snake_scores_table.c.score.desc()).limit(10)
     )
     return [{"name": r["login"], "score": r["score"]} for r in rows]
+
+
+# ===== МУЗЫКА =====
+@app.post("/music")
+@limiter.limit("10/minute")
+async def publish_music(request: Request, req: MusicTrackCreate, current_user: str = Depends(get_current_user)):
+    cost = 3 + (3 if req.has_gif else 0)
+    acc = await database.fetch_one(
+        accounts_table.select().where(accounts_table.c.login == current_user)
+    )
+    if not acc:
+        raise HTTPException(404, "Пользователь не найден")
+    if acc["pcoins"] < cost:
+        raise HTTPException(400, f"Недостаточно П-Баллов! Нужно {cost}, у тебя {acc['pcoins']}.")
+    new_pcoins = acc["pcoins"] - cost
+    await database.execute(
+        accounts_table.update()
+        .where(accounts_table.c.login == current_user)
+        .values(pcoins=new_pcoins)
+    )
+    import uuid
+    track_id = str(int(time.time() * 1000)) + "_" + str(uuid.uuid4()).replace("-", "")[:9]
+    from datetime import datetime
+    now_str = datetime.now().strftime("%H:%M, %d.%m.%Y")
+    await database.execute(
+        music_tracks_table.insert().values(
+            id=track_id,
+            title=req.title,
+            artist=req.artist,
+            author=current_user,
+            time_str=now_str,
+            has_gif=req.has_gif,
+            audio_data=req.audio_data,
+            cover_data=req.cover_data,
+            created_at=int(time.time() * 1000),
+        )
+    )
+    return {"ok": True, "id": track_id, "pcoins": new_pcoins}
+
+
+@app.get("/music")
+async def get_music():
+    rows = await database.fetch_all(
+        music_tracks_table.select()
+        .order_by(music_tracks_table.c.created_at.desc())
+        .limit(50)
+    )
+    return [
+        {
+            "id": r["id"],
+            "title": r["title"],
+            "artist": r["artist"],
+            "author": r["author"],
+            "time": r["time_str"],
+            "hasGif": r["has_gif"],
+            "hasCover": r["cover_data"] is not None,
+            "cover_data": r["cover_data"],
+        }
+        for r in rows
+    ]
+
+
+@app.get("/music/{track_id}/audio")
+async def get_music_audio(track_id: str):
+    row = await database.fetch_one(
+        music_tracks_table.select().where(music_tracks_table.c.id == track_id)
+    )
+    if not row or not row["audio_data"]:
+        raise HTTPException(404, "Аудио не найдено")
+    return {"audio_data": row["audio_data"]}
