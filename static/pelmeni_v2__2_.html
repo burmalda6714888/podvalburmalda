@@ -140,6 +140,8 @@ a:hover { text-decoration: underline; }
 .post-body { padding: 10px 12px 8px; }
 .post-text { font-size: 13px; color: #222; line-height: 1.6; }
 .post-img { width: 100%; max-height: 400px; object-fit: contain; background: #111; display: block; border-radius: 2px; margin-top: 8px; }
+.post-video { width: 100%; max-height: 400px; display: block; border-radius: 2px; margin-top: 8px; background: #111; outline: none; }
+.post-gif-badge { display: inline-block; background: #ff6b35; color: #fff; font-size: 9px; font-weight: 900; border-radius: 2px; padding: 1px 4px; margin-left: 5px; vertical-align: middle; letter-spacing: 0.03em; }
 .post-actions { padding: 5px 12px 7px; border-top: 1px solid #edf0f4; display: flex; gap: 14px; align-items: center; }
 .post-action { font-size: 11px; color: #777; cursor: pointer; transition: color 0.15s; user-select: none; }
 .post-action:hover { color: #4a76a8; }
@@ -147,6 +149,15 @@ a:hover { text-decoration: underline; }
 .post-like-count:hover { color: #999; }
 .post-like-count.has-likes { color: #999; }
 .post-like-count.liked-by-me { color: #c0392b; font-weight: 700; }
+.attach-preview { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: #f0f5fc; border-top: 1px solid #d3d9e0; }
+.attach-preview.show { display: flex; }
+.attach-preview img, .attach-preview video { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid #c4c4c4; flex-shrink: 0; }
+.attach-preview span { font-size: 11px; color: #555; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-preview .rm { color: #c0392b; font-size: 11px; cursor: pointer; flex: none; }
+.attach-type-badge { font-size: 10px; font-weight: 700; border-radius: 2px; padding: 1px 5px; flex-shrink: 0; }
+.attach-type-badge.img  { background: #e8f4ec; color: #2e7d32; }
+.attach-type-badge.gif  { background: #fff3e0; color: #e65100; }
+.attach-type-badge.vid  { background: #ede7f6; color: #4527a0; }
 .comments-section { border-top: 1px solid #edf0f4; background: #fafbfc; padding: 8px 12px; display: none; }
 .comments-section.open { display: block; }
 .comment { display: flex; gap: 7px; margin-bottom: 8px; animation: fadeIn 0.2s ease; }
@@ -170,11 +181,6 @@ a:hover { text-decoration: underline; }
 .btn-post:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
 .btn-attach-vk { color: #4a76a8; font-size: 12px; cursor: pointer; }
 .btn-attach-vk:hover { text-decoration: underline; }
-.attach-preview { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: #f0f5fc; border-top: 1px solid #d3d9e0; }
-.attach-preview.show { display: flex; }
-.attach-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid #c4c4c4; }
-.attach-preview span { font-size: 11px; color: #555; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attach-preview .rm { color: #c0392b; font-size: 11px; cursor: pointer; flex: none; }
 
 /* ПРАВЫЙ САЙДБАР */
 .sidebar-right { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -446,14 +452,16 @@ a:hover { text-decoration: underline; }
       <div class="new-post-box" id="mainFeedWrap">
         <textarea id="newPostText" placeholder="Написать..."></textarea>
         <div class="attach-preview" id="attachPreview">
-          <img id="previewImg" src="" alt="">
+          <img id="previewImg" src="" alt="" style="display:none">
+          <video id="previewVid" muted playsinline style="display:none"></video>
           <span id="previewName"></span>
+          <span class="attach-type-badge" id="previewBadge" style="display:none"></span>
           <span class="rm" onclick="removeAttach()">× убрать</span>
         </div>
         <div class="new-post-footer">
           <button class="btn-post" id="postBtn" onclick="addPost()">Отправить</button>
-          <label class="btn-attach-vk" for="photoFile">Фото</label>
-          <input type="file" id="photoFile" accept="image/*" style="display:none" onchange="onPhoto(this)">
+          <label class="btn-attach-vk" for="photoFile">📎 Фото / GIF / Видео</label>
+          <input type="file" id="photoFile" accept="image/*,video/*" style="display:none" onchange="onPhoto(this)">
         </div>
       </div>
       <div id="postsList"></div>
@@ -864,6 +872,15 @@ const openComments = new Set();
 const shownComments = {};
 const COMMENTS_STEP = 5;
 
+function renderPostMedia(src) {
+  if (!src) return '';
+  if (src.startsWith('data:video/') || src.startsWith('data:application/octet-stream')) {
+    return `<video class="post-video" src="${src}" controls preload="metadata"></video>`;
+  }
+  // image/* включая gif — анимация работает в <img> автоматически
+  return `<img class="post-img" src="${src}" alt="медиа">`;
+}
+
 function renderPosts() {
   const list = document.getElementById('postsList');
 
@@ -892,7 +909,7 @@ function renderPosts() {
       </div>
       <div class="post-body">
         ${p.text ? `<div class="post-text">${escHtml(p.text)}</div>` : ''}
-        ${p.photo ? `<img class="post-img" src="${p.photo}" alt="фото">` : ''}
+        ${p.photo ? renderPostMedia(p.photo) : ''}
       </div>
       <div class="post-actions">
         <span class="post-action" onclick="toggleComments(${p.id})">Комментарии (${(p.comments||[]).length})</span>
@@ -1052,7 +1069,7 @@ function doSearch(q) {
             <div class="post-ava">${escHtml(p.author[0].toUpperCase())}</div>
             <div class="post-info"><div class="post-author">${escHtml(p.author)}</div><div class="post-time">${escHtml(p.time)}</div></div>
           </div>
-          <div class="post-body"><div class="post-text">${escHtml(p.text)}</div>${p.photo?`<img class="post-img" src="${p.photo}" alt="">`:''}</div>
+          <div class="post-body"><div class="post-text">${escHtml(p.text)}</div>${p.photo ? renderPostMedia(p.photo) : ''}</div>
         </div>`;
       });
     }
@@ -1117,24 +1134,68 @@ function startAdRotation() {
   }, 8000);
 }
 
-// ===== ФОТО =====
+// ===== ФОТО / GIF / ВИДЕО =====
+const MAX_MEDIA_MB = 20;
+
 function onPhoto(input) {
   const file = input.files[0];
   if (!file) return;
+
+  const isVideo = file.type.startsWith('video/');
+  const isGif   = file.type === 'image/gif';
+
+  if (file.size > MAX_MEDIA_MB * 1024 * 1024) {
+    alert(`Файл слишком большой! Максимум ${MAX_MEDIA_MB} МБ.`);
+    input.value = '';
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = e => {
     pendingPhoto = e.target.result;
-    document.getElementById('previewImg').src = pendingPhoto;
-    document.getElementById('previewName').textContent = file.name;
+
+    const img = document.getElementById('previewImg');
+    const vid = document.getElementById('previewVid');
+    const badge = document.getElementById('previewBadge');
+
+    if (isVideo) {
+      img.style.display = 'none';
+      vid.src = pendingPhoto;
+      vid.style.display = 'block';
+      badge.textContent = 'ВИДЕО';
+      badge.className = 'attach-type-badge vid';
+    } else {
+      vid.style.display = 'none';
+      vid.src = '';
+      img.src = pendingPhoto;
+      img.style.display = 'block';
+      if (isGif) {
+        badge.textContent = 'GIF';
+        badge.className = 'attach-type-badge gif';
+      } else {
+        badge.textContent = 'ФОТО';
+        badge.className = 'attach-type-badge img';
+      }
+    }
+    badge.style.display = 'inline-block';
+
+    const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+    document.getElementById('previewName').textContent = file.name + ' · ' + sizeMb + ' МБ';
     document.getElementById('attachPreview').classList.add('show');
   };
   reader.readAsDataURL(file);
 }
+
 function removeAttach() {
   pendingPhoto = null;
-  document.getElementById('photoFile').value = '';
-  document.getElementById('previewImg').src = '';
+  const input = document.getElementById('photoFile');
+  input.value = '';
+  const img = document.getElementById('previewImg');
+  const vid = document.getElementById('previewVid');
+  img.src = ''; img.style.display = 'none';
+  vid.src = ''; vid.style.display = 'none';
   document.getElementById('previewName').textContent = '';
+  document.getElementById('previewBadge').style.display = 'none';
   document.getElementById('attachPreview').classList.remove('show');
 }
 
