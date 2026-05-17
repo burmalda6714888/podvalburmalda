@@ -240,6 +240,9 @@ class PcoinsUpdate(BaseModel):
     login: str
     delta: int
 
+class SpendRequest(BaseModel):
+    amount: int
+
 class AssignModRequest(BaseModel):
     target: str
 
@@ -444,6 +447,27 @@ async def earn_pcoins(current_user: str = Depends(get_current_user)):
     if not acc:
         raise HTTPException(404, "Пользователь не найден")
     new_val = acc["pcoins"] + 1
+    await database.execute(
+        accounts_table.update()
+        .where(accounts_table.c.login == current_user)
+        .values(pcoins=new_val)
+    )
+    return {"ok": True, "pcoins": new_val}
+
+@app.post("/pcoins/spend")
+@limiter.limit("20/minute")
+async def spend_pcoins(request: Request, req: SpendRequest, current_user: str = Depends(get_current_user)):
+    """Списывает указанное количество П-Баллов у текущего пользователя."""
+    if req.amount <= 0:
+        raise HTTPException(400, "Сумма должна быть больше нуля!")
+    acc = await database.fetch_one(
+        accounts_table.select().where(accounts_table.c.login == current_user)
+    )
+    if not acc:
+        raise HTTPException(404, "Пользователь не найден")
+    if acc["pcoins"] < req.amount:
+        raise HTTPException(400, f"Недостаточно П-Баллов! Нужно {req.amount}, у тебя {acc['pcoins']}.")
+    new_val = acc["pcoins"] - req.amount
     await database.execute(
         accounts_table.update()
         .where(accounts_table.c.login == current_user)
