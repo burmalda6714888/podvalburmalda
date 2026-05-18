@@ -269,6 +269,10 @@ class TimeoutRequest(BaseModel):
 class DeletePostRequest(BaseModel):
     pass  # requester берётся из токена
 
+class PostUpdate(BaseModel):
+    text: Optional[str] = None
+    photo: Optional[str] = None
+
 
 class MusicTrackCreate(BaseModel):
     title: str
@@ -411,17 +415,43 @@ async def add_comment(request: Request, post_id: int, req: CommentCreate, curren
 
 @app.delete("/posts/{post_id}")
 async def delete_post(post_id: int, current_user: str = Depends(get_current_user)):
-    await require_admin_or_mod(current_user)
     post = await database.fetch_one(
         posts_table.select().where(posts_table.c.id == post_id)
     )
     if not post:
         raise HTTPException(404, "Пост не найден")
+    role = await get_role(current_user)
+    is_owner = post["author"] == current_user
+    is_superuser = current_user == "Fokzz_Back"
+    is_admin_mod = role in ("admin", "moderator")
+    if not (is_owner or is_superuser or is_admin_mod):
+        raise HTTPException(403, "Нет прав для удаления этого поста!")
     await database.execute(
         comments_table.delete().where(comments_table.c.post_id == post_id)
     )
     await database.execute(
         posts_table.delete().where(posts_table.c.id == post_id)
+    )
+    return {"ok": True}
+
+@app.patch("/posts/{post_id}")
+async def edit_post(post_id: int, upd: PostUpdate, current_user: str = Depends(get_current_user)):
+    post = await database.fetch_one(
+        posts_table.select().where(posts_table.c.id == post_id)
+    )
+    if not post:
+        raise HTTPException(404, "Пост не найден")
+    if post["author"] != current_user:
+        raise HTTPException(403, "Можно редактировать только свои посты!")
+    values = {}
+    if upd.text is not None:
+        values["text"] = upd.text
+    if upd.photo is not None:
+        values["photo"] = upd.photo
+    if not values:
+        raise HTTPException(400, "Нечего обновлять")
+    await database.execute(
+        posts_table.update().where(posts_table.c.id == post_id).values(**values)
     )
     return {"ok": True}
 
