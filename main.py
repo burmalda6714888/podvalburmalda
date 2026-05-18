@@ -1,803 +1,2029 @@
-from fastapi import FastAPI, HTTPException, Depends, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from typing import Optional, List
-import databases
-import sqlalchemy
-from sqlalchemy import text
-import os
-import time
-import json
-import bcrypt
-from jose import jwt, JWTError
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Подвальные Пельмени</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; background: #e5ebf1; color: #2b2b2b; min-height: 100vh; }
+a { color: #2a5885; text-decoration: none; cursor: pointer; }
+a:hover { text-decoration: underline; }
 
-# ===== КОНФИГ =====
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:secret@db:5432/mydb")
-JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-change-me-in-production")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_HOURS = 24 * 7  # 7 дней
+#authPage { display: none; min-height: 100vh; background: linear-gradient(180deg, #4a76a8 0%, #2a5885 40%, #1a3a5c 100%); flex-direction: column; align-items: center; justify-content: center; }
+#authPage.active { display: flex; }
+#mainPage { display: none; }
+#mainPage.active { display: block; }
 
-# ===== RATE LIMITER =====
-limiter = Limiter(key_func=get_remote_address)
+/* AUTH */
+.auth-logo { font-family: Arial, sans-serif; font-size: 54px; font-weight: 900; color: #fff; letter-spacing: -1px; margin-bottom: 28px; text-shadow: 0 2px 8px rgba(0,0,0,0.3); text-align: center; }
+.auth-logo span { background: #fff; color: #4a76a8; border-radius: 6px; padding: 2px 14px; }
+.auth-box { background: #fff; border-radius: 6px; padding: 28px 32px 24px; width: 360px; box-shadow: 0 4px 32px rgba(0,0,0,0.28); }
+.auth-box h2 { font-size: 16px; font-weight: 700; color: #2a5885; margin-bottom: 18px; }
+.auth-box input { width: 100%; border: 1px solid #c4c4c4; border-radius: 4px; padding: 9px 12px; font-size: 13px; color: #333; margin-bottom: 10px; outline: none; transition: border 0.2s; }
+.auth-box input:focus { border-color: #4a76a8; box-shadow: 0 0 0 2px rgba(74,118,168,0.15); }
+.auth-box input::placeholder { color: #aaa; }
+.btn-blue { background: linear-gradient(180deg, #5b8fc9 0%, #4a76a8 50%, #3a6090 100%); border: 1px solid #2a5080; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 0; width: 100%; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.2); transition: filter 0.15s; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+.btn-blue:hover { filter: brightness(1.08); }
+.btn-blue:active { filter: brightness(0.94); }
+.btn-blue:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
+.auth-hint { font-size: 11px; color: #777; margin-top: 10px; line-height: 1.5; text-align: center; }
+.auth-hint b { color: #c0392b; }
+.auth-switch-link { display: block; text-align: center; margin-top: 14px; font-size: 12px; }
+.auth-error { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; color: #c0392b; font-size: 12px; padding: 8px 12px; margin-bottom: 10px; display: none; }
+.auth-error.show { display: block; }
 
-# ===== БД =====
-database = databases.Database(DATABASE_URL)
-metadata = sqlalchemy.MetaData()
+/* ШАПКА */
+.header { background: linear-gradient(180deg, #5b8fc9 0%, #4a76a8 60%, #3e6a9a 100%); border-bottom: 2px solid #2a5080; box-shadow: 0 2px 6px rgba(0,0,0,0.28); position: sticky; top: 0; z-index: 100; }
+.header-inner { max-width: 960px; margin: 0 auto; display: flex; align-items: center; height: 38px; padding: 0 10px; gap: 0; }
+.header-logo { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.5px; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.3); margin-right: 12px; flex-shrink: 0; }
+.header-logo span { background: #fff; color: #4a76a8; border-radius: 3px; padding: 0 5px; font-size: 18px; }
+.header-nav { display: flex; align-items: stretch; height: 38px; flex: 1; }
+.header-nav a { display: flex; align-items: center; padding: 0 11px; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.88); text-decoration: none; border-right: 1px solid rgba(255,255,255,0.13); white-space: nowrap; transition: background 0.12s, color 0.12s; cursor: pointer; }
+.header-nav a:first-child { border-left: 1px solid rgba(255,255,255,0.13); }
+.header-nav a:hover { background: rgba(0,0,0,0.15); color: #fff; text-decoration: none; }
+.header-nav a.active { background: rgba(0,0,0,0.18); color: #fff; }
+.header-search-wrap { position: relative; margin-left: 10px; flex-shrink: 0; }
+.header-search-wrap input { width: 150px; border: 1px solid rgba(255,255,255,0.35); border-radius: 2px; background: rgba(255,255,255,0.15); color: #fff; font-size: 12px; padding: 4px 8px; outline: none; }
+.header-search-wrap input::placeholder { color: rgba(255,255,255,0.55); }
+.search-dropdown { position: absolute; top: calc(100% + 4px); right: 0; width: 260px; background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 200; display: none; max-height: 280px; overflow-y: auto; }
+.search-dropdown.open { display: block; }
+.search-result-item { padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.12s; }
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: #f0f5fc; }
+.sr-ava { width: 28px; height: 28px; border-radius: 3px; background: linear-gradient(135deg, #4a76a8, #2a5885); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #fff; flex-shrink: 0; }
+.sr-ava.post-type { background: linear-gradient(135deg, #5da854, #2a7828); }
+.sr-info { flex: 1; min-width: 0; }
+.sr-title { font-size: 12px; font-weight: 700; color: #2a5885; }
+.sr-sub { font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-tag { font-size: 10px; color: #aaa; white-space: nowrap; }
+.search-no-results { padding: 12px; text-align: center; font-size: 12px; color: #aaa; }
+.header-right { display: flex; align-items: center; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+.header-user { color: rgba(255,255,255,0.9); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.header-logout { color: rgba(255,255,255,0.75); font-size: 12px; font-weight: 700; padding: 0 8px; height: 38px; display: flex; align-items: center; border-left: 1px solid rgba(255,255,255,0.15); cursor: pointer; }
+.header-logout:hover { color: #fff; }
 
-accounts_table = sqlalchemy.Table(
-    "accounts", metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
-    sqlalchemy.Column("login", sqlalchemy.String(64), unique=True, nullable=False),
-    sqlalchemy.Column("pass_hash", sqlalchemy.String(256), nullable=False),
-    sqlalchemy.Column("pcoins", sqlalchemy.Integer, default=0),
-)
+/* МОДАЛЬНОЕ ОКНО */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: none; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 6px; width: 420px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); overflow: hidden; animation: fadeIn 0.2s ease; }
+.modal-header { background: linear-gradient(180deg, #5b8fc9, #4a76a8); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+.modal-title { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.modal-close { color: rgba(255,255,255,0.7); font-size: 18px; cursor: pointer; line-height: 1; background: none; border: none; }
+.modal-close:hover { color: #fff; }
+.modal-body { padding: 18px 20px; }
+.modal-body label { display: block; font-size: 12px; font-weight: 700; color: #555; margin-bottom: 5px; margin-top: 12px; }
+.modal-body label:first-child { margin-top: 0; }
+.modal-body input, .modal-body textarea { width: 100%; border: 1px solid #c4c4c4; border-radius: 4px; padding: 8px 12px; font-size: 13px; color: #333; outline: none; font-family: Arial, sans-serif; transition: border 0.2s; }
+.modal-body input:focus, .modal-body textarea:focus { border-color: #4a76a8; }
+.modal-body textarea { resize: none; height: 90px; }
+.modal-cost { background: #fff8e8; border: 1px solid #e8c84a; border-radius: 4px; padding: 8px 12px; font-size: 12px; color: #9a6e08; margin-top: 14px; }
+.modal-cost b { color: #b8820a; font-size: 14px; }
+.modal-error { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; color: #c0392b; font-size: 12px; padding: 8px 12px; margin-top: 10px; display: none; }
+.modal-error.show { display: block; }
+.modal-footer { padding: 12px 20px 16px; display: flex; gap: 8px; }
+.btn-send-ad { background: linear-gradient(180deg, #f0c030, #d4a017); border: 1px solid #9a6a08; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 20px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.25); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); transition: filter 0.15s; flex: 1; }
+.btn-send-ad:hover { filter: brightness(1.08); }
+.btn-cancel { background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; color: #555; font-size: 13px; font-weight: 700; padding: 9px 16px; cursor: pointer; transition: background 0.15s; }
+.btn-cancel:hover { background: #e0e0e0; }
 
-posts_table = sqlalchemy.Table(
-    "posts", metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
-    sqlalchemy.Column("author", sqlalchemy.String(64), nullable=False),
-    sqlalchemy.Column("text", sqlalchemy.Text, default=""),
-    sqlalchemy.Column("photo", sqlalchemy.Text, default=None, nullable=True),
-    sqlalchemy.Column("likes", sqlalchemy.Integer, default=0),
-    sqlalchemy.Column("liked_by", sqlalchemy.Text, default=""),
-    sqlalchemy.Column("time_str", sqlalchemy.String(64), default=""),
-    sqlalchemy.Column("created_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ЛЕЙАУТ */
+.main-wrap { max-width: 960px; margin: 12px auto; display: flex; gap: 10px; padding: 0 10px; }
 
-comments_table = sqlalchemy.Table(
-    "comments", metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
-    sqlalchemy.Column("post_id", sqlalchemy.Integer, sqlalchemy.ForeignKey("posts.id"), nullable=False),
-    sqlalchemy.Column("author", sqlalchemy.String(64), nullable=False),
-    sqlalchemy.Column("text", sqlalchemy.Text, nullable=False),
-    sqlalchemy.Column("created_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ЛЕВЫЙ САЙДБАР */
+.sidebar-left { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.sidebar-menu { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; }
+.sidebar-menu .menu-header { background: #e5ebf1; border-bottom: 1px solid #d3d9e0; padding: 5px 10px; font-size: 12px; font-weight: 700; color: #4a76a8; }
+.sidebar-menu a { display: block; padding: 5px 10px; font-size: 12px; color: #2b2b2b; border-bottom: 1px solid #edf0f4; transition: background 0.12s; cursor: pointer; }
+.sidebar-menu a:last-child { border-bottom: none; }
+.sidebar-menu a:hover { background: #f5f8fc; text-decoration: none; }
+.sidebar-menu a.active { color: #4a76a8; font-weight: 700; background: #f0f5fc; }
+.sidebar-ad { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; }
+.sad-header { background: #e5ebf1; border-bottom: 1px solid #d3d9e0; padding: 5px 10px; font-size: 12px; font-weight: 700; color: #c0392b; }
+.sad-body { padding: 8px 10px; }
+.sad-title { font-size: 12px; font-weight: 700; color: #2b2b2b; margin-bottom: 3px; }
+.sad-text { font-size: 11px; color: #555; line-height: 1.5; }
+.sad-author { font-size: 10px; color: #aaa; margin-top: 4px; }
+.sad-empty { font-size: 11px; color: #bbb; padding: 8px 10px; }
+.sidebar-pcoins { background: linear-gradient(135deg, #fff8e8, #fff3d0); border: 1px solid #e8c84a; border-radius: 4px; overflow: hidden; }
+.pc-title { background: linear-gradient(90deg, #d4a017, #c8920a); padding: 6px 10px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+.pc-body { padding: 10px; }
+.pc-amount { font-size: 28px; font-weight: 900; color: #b8820a; text-align: center; line-height: 1; margin-bottom: 3px; }
+.pc-label { font-size: 10px; color: #9a6e08; text-align: center; margin-bottom: 6px; font-weight: 700; letter-spacing: 0.04em; }
+.pc-progress-wrap { background: #edd88a; border-radius: 4px; height: 8px; margin-bottom: 5px; overflow: hidden; }
+.pc-progress-bar { background: linear-gradient(90deg, #d4a017, #f0c030); height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+.pc-sub { font-size: 10px; color: #9a6e08; text-align: center; }
+.cd-banner { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; padding: 7px 10px; font-size: 11px; color: #c0392b; font-weight: 700; display: none; text-align: center; line-height: 1.4; }
+.cd-banner.show { display: block; }
 
-ads_table = sqlalchemy.Table(
-    "ads", metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
-    sqlalchemy.Column("author", sqlalchemy.String(64), nullable=False),
-    sqlalchemy.Column("title", sqlalchemy.String(120), nullable=False),
-    sqlalchemy.Column("text", sqlalchemy.Text, nullable=False),
-    sqlalchemy.Column("created_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ЛЕНТА */
+.feed { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.feed-tabs { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; display: flex; align-items: center; overflow: hidden; }
+.feed-tab { padding: 8px 16px; font-size: 12px; font-weight: 700; color: #4a76a8; border-right: 1px solid #d3d9e0; cursor: pointer; transition: background 0.12s; }
+.feed-tab.active { background: #4a76a8; color: #fff; }
+.feed-tab:hover:not(.active) { background: #f0f5fc; }
+.search-results-feed { display: none; flex-direction: column; gap: 8px; }
+.search-results-feed.open { display: flex; }
+.search-header-bar { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+.search-header-bar span { font-size: 13px; color: #555; flex: 1; }
+.search-close-btn { font-size: 12px; color: #c0392b; cursor: pointer; font-weight: 700; }
+.search-close-btn:hover { text-decoration: underline; }
 
-online_table = sqlalchemy.Table(
-    "online", metadata,
-    sqlalchemy.Column("login", sqlalchemy.String(64), primary_key=True),
-    sqlalchemy.Column("last_seen", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ПОСТЫ */
+.post { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.post-head { padding: 8px 12px 6px; display: flex; align-items: center; gap: 8px; background: #f5f8fc; border-bottom: 1px solid #edf0f4; }
+.post-ava { width: 32px; height: 32px; border-radius: 4px; flex-shrink: 0; background: linear-gradient(135deg, #4a76a8, #2a5885); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #fff; border: 1px solid #2a5080; }
+.post-info { flex: 1; }
+.post-author { font-size: 12px; font-weight: 700; color: #2a5885; }
+.post-time { font-size: 11px; color: #999; margin-top: 1px; }
+.post-body { padding: 10px 12px 8px; }
+.post-text { font-size: 13px; color: #222; line-height: 1.6; }
+.post-img { width: 100%; max-height: 400px; object-fit: contain; background: #111; display: block; border-radius: 2px; margin-top: 8px; }
+.post-video { width: 100%; max-height: 400px; display: block; border-radius: 2px; margin-top: 8px; background: #111; outline: none; }
+.post-gif-badge { display: inline-block; background: #ff6b35; color: #fff; font-size: 9px; font-weight: 900; border-radius: 2px; padding: 1px 4px; margin-left: 5px; vertical-align: middle; letter-spacing: 0.03em; }
+.post-actions { padding: 5px 12px 7px; border-top: 1px solid #edf0f4; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.post-btn-edit { margin-left: auto; background: none; border: none; font-size: 12px; color: #4a76a8; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-weight: 600; transition: background .15s; }
+.post-btn-edit:hover { background: #e8f0fb; }
+.post-btn-delete { background: none; border: none; font-size: 12px; color: #cc3333; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-weight: 600; transition: background .15s; }
+.post-btn-delete:hover { background: #fdeaea; }
+.post-edit-area { width: 100%; box-sizing: border-box; border: 1px solid #c0cfe0; border-radius: 6px; padding: 7px 10px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+.post-edit-row { display: flex; gap: 8px; padding: 6px 12px 8px; }
+.post-edit-save { background: #4a76a8; color: #fff; border: none; border-radius: 5px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.post-edit-save:hover { background: #3a6090; }
+.post-edit-cancel { background: #edf0f4; color: #555; border: none; border-radius: 5px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.post-action { font-size: 11px; color: #777; cursor: pointer; transition: color 0.15s; user-select: none; }
+.post-action:hover { color: #4a76a8; }
+.post-like-count { margin-left: auto; font-size: 11px; color: #bbb; cursor: pointer; user-select: none; transition: color 0.15s; }
+.post-like-count:hover { color: #999; }
+.post-like-count.has-likes { color: #999; }
+.post-like-count.liked-by-me { color: #c0392b; font-weight: 700; }
+.attach-preview { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: #f0f5fc; border-top: 1px solid #d3d9e0; }
+.attach-preview.show { display: flex; }
+.attach-preview img, .attach-preview video { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid #c4c4c4; flex-shrink: 0; }
+.attach-preview span { font-size: 11px; color: #555; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-preview .rm { color: #c0392b; font-size: 11px; cursor: pointer; flex: none; }
+.attach-type-badge { font-size: 10px; font-weight: 700; border-radius: 2px; padding: 1px 5px; flex-shrink: 0; }
+.attach-type-badge.img  { background: #e8f4ec; color: #2e7d32; }
+.attach-type-badge.gif  { background: #fff3e0; color: #e65100; }
+.attach-type-badge.vid  { background: #ede7f6; color: #4527a0; }
+.comments-section { border-top: 1px solid #edf0f4; background: #fafbfc; padding: 8px 12px; display: none; }
+.comments-section.open { display: block; }
+.comment { display: flex; gap: 7px; margin-bottom: 8px; animation: fadeIn 0.2s ease; }
+.comment-ava { width: 24px; height: 24px; border-radius: 3px; flex-shrink: 0; background: linear-gradient(135deg, #4a76a8, #2a5885); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: #fff; }
+.comment-bubble { background: #fff; border: 1px solid #e0e6ed; border-radius: 4px; padding: 5px 9px; flex: 1; }
+.comment-author { font-size: 11px; font-weight: 700; color: #2a5885; margin-bottom: 2px; }
+.comment-text { font-size: 12px; color: #333; line-height: 1.5; }
+.comment-input-row { display: flex; gap: 7px; margin-top: 6px; }
+.comment-input-row input { flex: 1; border: 1px solid #c4c4c4; border-radius: 4px; padding: 6px 10px; font-size: 12px; outline: none; transition: border 0.2s; font-family: Arial; }
+.comment-input-row input:focus { border-color: #4a76a8; }
+.comment-input-row input::placeholder { color: #bbb; }
+.btn-comment-send { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 700; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
+.btn-comment-send:hover { filter: brightness(1.08); }
+.no-comments { font-size: 11px; color: #bbb; margin-bottom: 6px; }
+.new-post-box { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; }
+.new-post-box textarea { width: 100%; border: none; border-bottom: 1px solid #edf0f4; padding: 10px 12px; font-size: 13px; color: #333; resize: none; height: 64px; outline: none; font-family: Arial, sans-serif; }
+.new-post-box textarea::placeholder { color: #bbb; }
+.new-post-footer { padding: 7px 12px; display: flex; align-items: center; gap: 10px; background: #f9fafb; }
+.btn-post { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 16px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: filter 0.15s; }
+.btn-post:hover { filter: brightness(1.08); }
+.btn-post:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+.btn-attach-vk { color: #4a76a8; font-size: 12px; cursor: pointer; }
+.btn-attach-vk:hover { text-decoration: underline; }
 
-roles_table = sqlalchemy.Table(
-    "roles", metadata,
-    sqlalchemy.Column("login", sqlalchemy.String(64), primary_key=True),
-    sqlalchemy.Column("role", sqlalchemy.String(32), nullable=False),
-)
+/* ПРАВЫЙ САЙДБАР */
+.sidebar-right { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.widget { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; }
+.widget-title { background: #e5ebf1; border-bottom: 1px solid #d3d9e0; padding: 6px 10px; font-size: 12px; font-weight: 700; color: #4a76a8; }
+.widget-body { padding: 8px 10px; }
+.online-user { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
+.online-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; flex-shrink: 0; }
+.online-name { cursor: pointer; color: #2a5885; font-size: 12px; }
+.online-name:hover { text-decoration: underline; }
 
-timeouts_table = sqlalchemy.Table(
-    "timeouts", metadata,
-    sqlalchemy.Column("login", sqlalchemy.String(64), primary_key=True),
-    sqlalchemy.Column("timeout_until", sqlalchemy.BigInteger, nullable=False),
-)
+/* ===== ИГРЫ ===== */
+.games-list { display: flex; flex-direction: column; gap: 8px; }
+.game-card { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; animation: fadeIn 0.3s ease; }
+.game-card-header { background: linear-gradient(180deg, #5b8fc9, #4a76a8); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; }
+.game-card-title { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.game-card-badge { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 10px; font-size: 11px; color: #fff; padding: 2px 8px; font-weight: 700; }
+.game-card-body { padding: 12px 14px; }
+.game-desc { font-size: 12px; color: #555; margin-bottom: 10px; line-height: 1.5; }
+.game-reward { background: linear-gradient(135deg, #fff8e8, #fff3d0); border: 1px solid #e8c84a; border-radius: 4px; padding: 6px 10px; font-size: 11px; color: #9a6e08; margin-bottom: 10px; }
+.game-reward b { color: #b8820a; }
+.btn-play { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 700; padding: 7px 18px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: filter 0.15s; }
+.btn-play:hover { filter: brightness(1.08); }
 
-snake_scores_table = sqlalchemy.Table(
-    "snake_scores", metadata,
-    sqlalchemy.Column("login", sqlalchemy.String(64), primary_key=True),
-    sqlalchemy.Column("score", sqlalchemy.Integer, nullable=False, default=0),
-    sqlalchemy.Column("updated_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ЗМЕЙКА */
+.snake-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 600; display: none; align-items: center; justify-content: center; }
+.snake-modal-overlay.open { display: flex; }
+.snake-modal { background: #fff; border-radius: 6px; width: 480px; box-shadow: 0 8px 40px rgba(0,0,0,0.35); overflow: hidden; }
+.snake-modal-header { background: linear-gradient(180deg, #5b8fc9, #4a76a8); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; }
+.snake-modal-title { font-size: 14px; font-weight: 700; color: #fff; }
+.snake-modal-close { color: rgba(255,255,255,0.7); font-size: 20px; cursor: pointer; background: none; border: none; line-height: 1; }
+.snake-modal-close:hover { color: #fff; }
+.snake-info-bar { background: #f5f8fc; border-bottom: 1px solid #d3d9e0; padding: 7px 14px; display: flex; align-items: center; gap: 16px; font-size: 12px; }
+.snake-stat { color: #555; }
+.snake-stat b { color: #2a5885; font-size: 14px; }
+.snake-stat-coins b { color: #b8820a; }
+.snake-canvas-wrap { padding: 12px; display: flex; justify-content: center; background: #1a1a2e; }
+#snakeCanvas { border: 2px solid #4a76a8; border-radius: 3px; display: block; }
+.snake-controls { padding: 10px 14px; background: #f9fafb; border-top: 1px solid #d3d9e0; display: flex; align-items: center; justify-content: space-between; }
+.snake-hint { font-size: 11px; color: #999; }
+.snake-overlay-msg { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; gap: 12px; border-radius: 3px; }
+.snake-overlay-msg h3 { font-size: 20px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+.snake-overlay-msg p { font-size: 13px; color: rgba(255,255,255,0.8); }
+.btn-snake-start { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 24px; cursor: pointer; }
+.btn-snake-start:hover { filter: brightness(1.1); }
+.snake-canvas-container { position: relative; }
+.snake-reward-msg { background: linear-gradient(90deg, #d4a017, #c8920a); color: #fff; text-align: center; padding: 6px 14px; font-size: 12px; font-weight: 700; display: none; }
+.snake-reward-msg.show { display: block; animation: fadeIn 0.3s ease; }
 
-music_tracks_table = sqlalchemy.Table(
-    "music_tracks", metadata,
-    sqlalchemy.Column("id", sqlalchemy.String(64), primary_key=True),
-    sqlalchemy.Column("title", sqlalchemy.String(120), nullable=False),
-    sqlalchemy.Column("artist", sqlalchemy.String(120), nullable=False),
-    sqlalchemy.Column("author", sqlalchemy.String(64), nullable=False),
-    sqlalchemy.Column("time_str", sqlalchemy.String(64), nullable=False),
-    sqlalchemy.Column("has_gif", sqlalchemy.Boolean, default=False),
-    sqlalchemy.Column("audio_data", sqlalchemy.Text, nullable=True),
-    sqlalchemy.Column("cover_data", sqlalchemy.Text, nullable=True),
-    sqlalchemy.Column("created_at", sqlalchemy.BigInteger, default=lambda: int(time.time() * 1000)),
-)
+/* ТОП ОЧКОВ ЗМЕЙКИ */
+.snake-top { margin-top: 10px; border-top: 1px solid #edf0f4; padding-top: 8px; }
+.snake-top-title { font-size: 11px; font-weight: 700; color: #4a76a8; margin-bottom: 5px; }
+.snake-top-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
+.snake-top-row:last-child { border-bottom: none; }
+.snake-top-pos { width: 18px; font-weight: 700; color: #aaa; font-size: 11px; flex-shrink: 0; }
+.snake-top-pos.gold { color: #d4a017; }
+.snake-top-pos.silver { color: #888; }
+.snake-top-pos.bronze { color: #b87333; }
+.snake-top-name { flex: 1; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snake-top-score { font-weight: 700; color: #2a5885; flex-shrink: 0; }
+.snake-top-empty { font-size: 11px; color: #bbb; }
 
-engine = sqlalchemy.create_engine(DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://"))
-metadata.create_all(engine)
+/* МОБИЛЬНЫЙ D-PAD */
+.snake-dpad { display: none; padding: 10px; background: #1a1a2e; justify-content: center; align-items: center; }
+.snake-dpad-grid { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+.dpad-btn { width: 52px; height: 52px; background: rgba(74,118,168,0.3); border: 2px solid rgba(74,118,168,0.6); border-radius: 10px; color: #fff; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; transition: background 0.1s, transform 0.1s; }
+.dpad-btn:active { background: rgba(74,118,168,0.7); transform: scale(0.92); }
+.dpad-center { background: transparent; border-color: transparent; pointer-events: none; }
+@media (max-width: 600px) {
+  .snake-dpad { display: flex; }
+  .snake-modal { width: 100%; max-width: 100%; border-radius: 0; }
+  .snake-modal-overlay { align-items: flex-start; }
+  #snakeCanvas { width: 320px !important; height: 320px !important; }
+  .snake-canvas-wrap { padding: 8px; }
+}
 
-app = FastAPI(title="Подвальные Пельмени API")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+/* ===== МОБИЛЬНАЯ АДАПТАЦИЯ ===== */
+@media (max-width: 700px) {
+  .header-inner { height: auto; flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
+  .header-logo { font-size: 16px; margin-right: 6px; }
+  .header-nav { height: auto; flex-wrap: wrap; }
+  .header-nav a { padding: 0 8px; font-size: 11px; height: 30px; }
+  .header-search-wrap { width: 100%; order: 3; }
+  .header-search-wrap input { width: 100%; }
+  .header-right { margin-left: auto; }
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+  .main-wrap { flex-direction: column; gap: 8px; padding: 0 6px; margin: 8px auto; }
+  .sidebar-left { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+  .sidebar-menu { flex: 1; min-width: 140px; }
+  .sidebar-pcoins { flex: 1; min-width: 140px; }
+  .sidebar-ad { flex: 1; min-width: 140px; }
+  .cd-banner { width: 100%; }
+  .sidebar-right { width: 100%; }
 
-security = HTTPBearer(auto_error=False)
+  .auth-box { width: calc(100% - 24px); padding: 20px 16px 18px; }
+  .auth-logo { font-size: 36px; }
 
+  .modal { width: calc(100% - 24px); margin: 12px; }
+  .post-img { max-height: 260px; }
 
-# ===== JWT =====
-def create_token(login: str) -> str:
-    payload = {
-        "sub": login,
-        "exp": int(time.time()) + JWT_EXPIRE_HOURS * 3600,
+  .feed-tab { padding: 7px 10px; font-size: 11px; }
+}
+@media (max-width: 400px) {
+  .auth-logo { font-size: 28px; }
+  .header-logo { font-size: 14px; }
+}
+
+/* ===== ПОДВАЛ МЬЮЗИК ===== */
+.music-section { display: flex; flex-direction: column; gap: 8px; }
+.music-header-bar { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.music-section-title { font-size: 14px; font-weight: 700; color: #7b3fa0; }
+.music-section-sub { font-size: 11px; color: #999; margin-top: 2px; }
+.btn-publish-track { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); border: 1px solid #5a2e80; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: filter 0.15s; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.btn-publish-track:hover { filter: brightness(1.1); }
+.music-track-card { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; animation: fadeIn 0.3s ease; }
+.music-track-head { padding: 10px 12px; display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #fdf8ff, #f8f0ff); border-bottom: 1px solid #ead9f5; }
+.music-cover { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid #d3d9e0; flex-shrink: 0; }
+.music-cover-placeholder { width: 56px; height: 56px; border-radius: 4px; background: linear-gradient(135deg, #a855c9, #7b3fa0); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(123,63,160,0.3); }
+.music-meta { flex: 1; min-width: 0; }
+.music-title { font-size: 13px; font-weight: 700; color: #2b2b2b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.music-artist { font-size: 12px; color: #7b3fa0; font-weight: 700; margin-bottom: 3px; }
+.music-pub-info { font-size: 10px; color: #bbb; }
+.music-gif-badge { display: inline-block; background: linear-gradient(90deg, #a855c9, #e879f9); color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 6px; margin-left: 4px; vertical-align: middle; letter-spacing: 0.05em; }
+.music-player-wrap { padding: 8px 12px 10px; background: #fdfaff; }
+.music-player-wrap audio { width: 100%; height: 32px; }
+.music-empty { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 20px; text-align: center; color: #aaa; font-size: 13px; }
+
+/* МЬЮЗИК МОДАЛКА */
+.music-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 510; display: none; align-items: center; justify-content: center; }
+.music-modal-overlay.open { display: flex; }
+.music-modal { background: #fff; border-radius: 6px; width: 440px; max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.32); animation: fadeIn 0.2s ease; }
+.music-modal-header { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 2; }
+.music-modal-title { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+.music-modal-close { color: rgba(255,255,255,0.75); font-size: 18px; cursor: pointer; background: none; border: none; line-height: 1; }
+.music-modal-close:hover { color: #fff; }
+.music-modal-body { padding: 16px 20px; }
+.music-modal-body label { display: block; font-size: 12px; font-weight: 700; color: #555; margin-bottom: 5px; margin-top: 14px; }
+.music-modal-body label:first-child { margin-top: 0; }
+.music-modal-body input[type="text"] { width: 100%; border: 1px solid #c4c4c4; border-radius: 4px; padding: 8px 12px; font-size: 13px; color: #333; outline: none; font-family: Arial, sans-serif; transition: border 0.2s; }
+.music-modal-body input[type="text"]:focus { border-color: #7b3fa0; box-shadow: 0 0 0 2px rgba(123,63,160,0.12); }
+.music-file-zone { border: 2px dashed #c4c4c4; border-radius: 4px; padding: 11px 12px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-size: 12px; color: #888; margin-top: 2px; user-select: none; }
+.music-file-zone:hover { border-color: #7b3fa0; background: #faf5ff; color: #7b3fa0; }
+.music-file-zone.has-file { border-color: #7b3fa0; background: #faf5ff; color: #7b3fa0; font-weight: 700; }
+.music-cost-box { background: linear-gradient(135deg, #fdf8ff, #f8f0ff); border: 1px solid #d4a0e8; border-radius: 4px; padding: 9px 12px; font-size: 12px; color: #6a2e90; margin-top: 14px; line-height: 1.7; }
+.music-cost-box b { color: #7b3fa0; font-size: 13px; }
+.music-modal-error { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; color: #c0392b; font-size: 12px; padding: 8px 12px; margin-top: 10px; display: none; }
+.music-modal-error.show { display: block; }
+.music-modal-footer { padding: 12px 20px 16px; display: flex; gap: 8px; border-top: 1px solid #f0f0f0; }
+.btn-publish-confirm { background: linear-gradient(180deg, #a855c9 0%, #7b3fa0 100%); border: 1px solid #5a2e80; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 20px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); transition: filter 0.15s; flex: 1; }
+.btn-publish-confirm:hover { filter: brightness(1.08); }
+.btn-publish-confirm:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
+.music-cover-preview { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; border: 1px solid #d3d9e0; display: none; margin-top: 8px; }
+.music-cover-preview.show { display: block; }
+@media (max-width: 700px) {
+  .music-modal { width: calc(100% - 24px); margin: 12px; }
+  .music-header-bar { flex-direction: column; align-items: flex-start; }
+}
+
+/* ===== ПАБЛИКИ ===== */
+.publics-section { display: flex; flex-direction: column; gap: 8px; }
+.publics-header-bar { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.publics-section-title { font-size: 14px; font-weight: 700; color: #2a5885; }
+.publics-section-sub { font-size: 11px; color: #999; margin-top: 2px; }
+.btn-create-public { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 700; padding: 7px 14px; cursor: pointer; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: filter 0.15s; flex-shrink: 0; }
+.btn-create-public:hover { filter: brightness(1.1); }
+.public-card { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; overflow: hidden; animation: fadeIn 0.3s ease; }
+.public-card-head { background: linear-gradient(180deg, #5b8fc9, #4a76a8); padding: 0; display: flex; align-items: stretch; min-height: 64px; }
+.public-card-ava { width: 64px; height: 64px; flex-shrink: 0; background: linear-gradient(135deg, #3a6090, #2a5080); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: #fff; border-right: 1px solid rgba(255,255,255,0.2); overflow: hidden; }
+.public-card-ava img { width: 64px; height: 64px; object-fit: cover; display: block; }
+.public-card-info { flex: 1; padding: 10px 14px; }
+.public-card-name { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); margin-bottom: 3px; }
+.public-card-creator { font-size: 11px; color: rgba(255,255,255,0.7); }
+.public-card-desc { padding: 10px 14px; font-size: 12px; color: #444; line-height: 1.6; border-top: 1px solid #edf0f4; }
+.public-card-footer { padding: 6px 14px 10px; border-top: 1px solid #edf0f4; display: flex; align-items: center; gap: 10px; }
+.public-card-members { font-size: 11px; color: #777; }
+.btn-public-join { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 12px; cursor: pointer; transition: filter 0.15s; }
+.btn-public-join:hover { filter: brightness(1.1); }
+.btn-public-join.joined { background: linear-gradient(180deg, #c0392b, #a93226); border-color: #7a2218; }
+.publics-empty { background: #fff; border: 1px solid #d3d9e0; border-radius: 4px; padding: 24px; text-align: center; color: #aaa; font-size: 13px; }
+
+/* МОДАЛКА СОЗДАНИЯ ПАБЛИКА */
+.public-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 510; display: none; align-items: center; justify-content: center; }
+.public-modal-overlay.open { display: flex; }
+.public-modal { background: #fff; border-radius: 6px; width: 420px; max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.32); animation: fadeIn 0.2s ease; }
+.public-modal-header { background: linear-gradient(180deg, #5b8fc9, #4a76a8); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 2; }
+.public-modal-title { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.public-modal-close { color: rgba(255,255,255,0.75); font-size: 18px; cursor: pointer; background: none; border: none; line-height: 1; }
+.public-modal-close:hover { color: #fff; }
+.public-modal-body { padding: 16px 20px; }
+.public-modal-body label { display: block; font-size: 12px; font-weight: 700; color: #555; margin-bottom: 5px; margin-top: 14px; }
+.public-modal-body label:first-child { margin-top: 0; }
+.public-modal-body input[type="text"], .public-modal-body textarea { width: 100%; border: 1px solid #c4c4c4; border-radius: 4px; padding: 8px 12px; font-size: 13px; color: #333; outline: none; font-family: Arial, sans-serif; transition: border 0.2s; }
+.public-modal-body input[type="text"]:focus, .public-modal-body textarea:focus { border-color: #4a76a8; box-shadow: 0 0 0 2px rgba(74,118,168,0.12); }
+.public-modal-body textarea { resize: none; height: 80px; }
+.public-ava-upload-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.public-ava-preview { width: 56px; height: 56px; border-radius: 4px; border: 1px solid #d3d9e0; object-fit: cover; display: none; }
+.public-ava-preview.show { display: block; }
+.public-ava-placeholder { width: 56px; height: 56px; border-radius: 4px; border: 2px dashed #c4c4c4; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #ccc; flex-shrink: 0; }
+.public-ava-zone { flex: 1; border: 2px dashed #c4c4c4; border-radius: 4px; padding: 9px 12px; text-align: center; cursor: pointer; font-size: 12px; color: #888; transition: border-color 0.2s, background 0.2s; user-select: none; }
+.public-ava-zone:hover { border-color: #4a76a8; background: #f0f5fc; color: #4a76a8; }
+.public-ava-zone.has-file { border-color: #4a76a8; background: #f0f5fc; color: #4a76a8; font-weight: 700; }
+.public-modal-error { background: #fdecea; border: 1px solid #e57373; border-radius: 4px; color: #c0392b; font-size: 12px; padding: 8px 12px; margin-top: 10px; display: none; }
+.public-modal-error.show { display: block; }
+.public-modal-footer { padding: 12px 20px 16px; display: flex; gap: 8px; border-top: 1px solid #f0f0f0; }
+.btn-create-public-confirm { background: linear-gradient(180deg, #5b8fc9, #4a76a8); border: 1px solid #2a5080; border-radius: 4px; color: #fff; font-size: 13px; font-weight: 700; padding: 9px 20px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); transition: filter 0.15s; flex: 1; }
+.btn-create-public-confirm:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="authPage" class="active">
+  <div class="auth-logo"><span>Подвальные</span> Пельмени</div>
+  <div class="auth-box" id="loginBox">
+    <h2>Вход</h2>
+    <div class="auth-error" id="loginError"></div>
+    <input type="text" id="loginInput" placeholder="Ваш логин" />
+    <input type="password" id="passInput" placeholder="Ваш пароль" onkeydown="if(event.key==='Enter')doLogin()" />
+    <button class="btn-blue" id="loginBtn" onclick="doLogin()">Войти</button>
+    <div class="auth-switch-link"><a onclick="showReg()">Зарегистрироваться</a> · <a onclick="alert('Обратись к администратору в Discord!')">Забыли пароль?</a></div>
+    <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,0.7);text-align:center;line-height:1.5;padding:8px 10px;background:rgba(0,0,0,0.18);border-radius:4px;">
+      ⚠️ Проект является шуткой-приколом и не пытается себя выдать за ВКонтакте / vk.com
+    </div>
+  </div>
+  <div class="auth-box" id="regBox" style="display:none">
+    <h2>Регистрация</h2>
+    <div class="auth-error" id="regError"></div>
+    <input type="text" id="regLogin" placeholder="Придумайте логин" />
+    <input type="password" id="regPass" placeholder="Придумайте пароль" />
+    <input type="text" id="regCode" placeholder="Код входа (из Discord)" onkeydown="if(event.key==='Enter')doRegister()" />
+    <button class="btn-blue" id="regBtn" onclick="doRegister()">Создать аккаунт</button>
+    <div class="auth-hint">Введи <b>код</b> из новостей Discord сервера.<br>Без кода регистрация невозможна.</div>
+    <div class="auth-switch-link" style="margin-top:10px"><a onclick="showLogin()">← Уже есть аккаунт</a> · <a onclick="alert('Ничего пока что 🤷')">Забыл код</a></div>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО ОБЪЯВЛЕНИЯ -->
+<div class="modal-overlay" id="adModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Купить объявление</span>
+      <button class="modal-close" onclick="closeAdModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <label>Заголовок объявления</label>
+      <input type="text" id="adTitle" placeholder="Например: Продам пельмени оптом" maxlength="60" />
+      <label>Текст объявления</label>
+      <textarea id="adText" placeholder="Опиши своё объявление подробнее..."></textarea>
+      <div class="modal-cost">Стоимость размещения: <b>10 П-Баллов</b><br>У вас сейчас: <b id="modalCoins">0</b> П-Баллов</div>
+      <div class="modal-error" id="adError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-send-ad" onclick="publishAd()">Отправить в сеть — 10 П-Баллов</button>
+      <button class="btn-cancel" onclick="closeAdModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- ГЛАВНАЯ -->
+<div id="mainPage">
+  <div class="header">
+    <div class="header-inner">
+      <div class="header-logo"><span>П</span>ельмени</div>
+      <nav class="header-nav">
+        <a class="active" href="javascript:void(0)">лента</a>
+        <a class="header-logout" onclick="doLogout()">выйти</a>
+      </nav>
+      <div class="header-search-wrap">
+        <input type="text" id="searchInput" placeholder="Поиск" oninput="doSearch(this.value)" onkeydown="if(event.key==='Escape')closeSearch()" autocomplete="off" />
+        <div class="search-dropdown" id="searchDropdown"></div>
+      </div>
+      <div class="header-right">
+        <div class="header-user" id="headerUser">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-wrap">
+    <!-- ЛЕВЫЙ САЙДБАР -->
+    <div class="sidebar-left">
+      <div class="sidebar-menu">
+        <div class="menu-header">Меню</div>
+        <a class="active" id="menuNews" href="javascript:void(0)" onclick="showFeed()">Мои Новости</a>
+        <a href="javascript:void(0)" onclick="openAdModal()">Купить рекламу</a>
+        <a id="menuGames" href="javascript:void(0)" onclick="showGames()" style="color:#4a76a8;font-weight:700;">🎮 Подвал-Игры</a>
+        <a id="menuMusic" href="javascript:void(0)" onclick="showMusic()" style="color:#7b3fa0;font-weight:700;">🎵 Подвал Мьюзик</a>
+        <a id="menuPublics" href="javascript:void(0)" onclick="showPublics()" style="color:#2a5885;font-weight:700;">📢 Паблики</a>
+      </div>
+      <div class="sidebar-ad">
+        <div class="sad-header">Объявление</div>
+        <div id="sidebarAdContent">
+          <div class="sad-empty">Объявлений пока нет</div>
+        </div>
+      </div>
+      <div class="sidebar-pcoins">
+        <div class="pc-title">П-Баллы</div>
+        <div class="pc-body">
+          <div class="pc-amount" id="pcAmount">0</div>
+          <div class="pc-label">П-БАЛЛОВ</div>
+          <div class="pc-progress-wrap"><div class="pc-progress-bar" id="pcBar" style="width:0%"></div></div>
+          <div class="pc-sub" id="pcSub">ещё 2 поста до +1 балла</div>
+        </div>
+      </div>
+      <div class="cd-banner" id="cdBanner">КД: <span id="cdSec">60</span> сек.<br>Посты обновятся</div>
+    </div>
+
+    <!-- ЛЕНТА -->
+    <div class="feed">
+      <div class="feed-tabs">
+        <div class="feed-tab active">Новости</div>
+      </div>
+      <div class="search-results-feed" id="searchResultsFeed">
+        <div class="search-header-bar">
+          <span id="searchResultsLabel">Результаты поиска:</span>
+          <span class="search-close-btn" onclick="closeSearch()">× Закрыть</span>
+        </div>
+        <div id="searchResultsList"></div>
+      </div>
+      <div class="new-post-box" id="mainFeedWrap">
+        <textarea id="newPostText" placeholder="Написать..."></textarea>
+        <div class="attach-preview" id="attachPreview">
+          <img id="previewImg" src="" alt="" style="display:none">
+          <video id="previewVid" muted playsinline style="display:none"></video>
+          <span id="previewName"></span>
+          <span class="attach-type-badge" id="previewBadge" style="display:none"></span>
+          <span class="rm" onclick="removeAttach()">× убрать</span>
+        </div>
+        <div class="new-post-footer">
+          <button class="btn-post" id="postBtn" onclick="addPost()">Отправить</button>
+          <label class="btn-attach-vk" for="photoFile">📎 Фото / GIF / Видео</label>
+          <input type="file" id="photoFile" accept="image/*,video/*" style="display:none" onchange="onPhoto(this)">
+        </div>
+      </div>
+      <div id="postsList"></div>
+      <!-- ИГРЫ -->
+      <div id="gamesList" class="games-list" style="display:none;">
+        <div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:10px 14px;">
+          <div style="font-size:14px;font-weight:700;color:#4a76a8;margin-bottom:2px;">🎮 Подвал-Игры</div>
+          <div style="font-size:11px;color:#999;">Зарабатывай П-Баллы играя в игры!</div>
+        </div>
+        <div class="game-card">
+          <div class="game-card-header">
+            <span class="game-card-title">🐍 Змейка</span>
+            <span class="game-card-badge">+1 П-Балл</span>
+          </div>
+          <div class="game-card-body">
+            <div class="game-desc">Классическая змейка! Управляй змеёй стрелками или WASD, собирай яблоки и не врезайся в стены.</div>
+            <div class="game-reward">🏆 Награда: <b>1 П-Балл</b> за каждые <b>5 яблок</b></div>
+            <button class="btn-play" onclick="openSnake()">▶ Играть</button>
+            <div class="snake-top">
+              <div class="snake-top-title">🏅 Топ очков</div>
+              <div id="snakeLeaderboard"><div class="snake-top-empty">Рекордов пока нет</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ПОДВАЛ МЬЮЗИК -->
+      <div id="musicList" class="music-section" style="display:none;">
+        <div class="music-header-bar">
+          <div>
+            <div class="music-section-title">🎵 Подвал Мьюзик</div>
+            <div class="music-section-sub">Публикация трека — 3 П-Балла · GIF обложка — +3 П-Балла</div>
+          </div>
+          <button class="btn-publish-track" onclick="openMusicModal()">🎵 Опубликовать трек</button>
+        </div>
+        <div id="musicTracksList">
+          <div class="music-empty">Загрузка треков...</div>
+        </div>
+      </div>
+      <!-- ПАБЛИКИ -->
+      <div id="publicsList" class="publics-section" style="display:none;">
+        <div class="publics-header-bar">
+          <div>
+            <div class="publics-section-title">📢 Паблики</div>
+            <div class="publics-section-sub">Создавай сообщества по интересам</div>
+          </div>
+          <button class="btn-create-public" onclick="openCreatePublicModal()">+ Создать паблик</button>
+        </div>
+        <div id="publicsListContent">
+          <div class="publics-empty">Пабликов пока нет — создай первый!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ПРАВЫЙ САЙДБАР -->
+    <div class="sidebar-right">
+      <div class="widget">
+        <div class="widget-title">Онлайн</div>
+        <div class="widget-body" id="onlineList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- МЬЮЗИК МОДАЛКА -->
+<div class="music-modal-overlay" id="musicModal">
+  <div class="music-modal">
+    <div class="music-modal-header">
+      <span class="music-modal-title">🎵 Опубликовать трек</span>
+      <button class="music-modal-close" onclick="closeMusicModal()">×</button>
+    </div>
+    <div class="music-modal-body">
+      <label>Аудио файл трека *</label>
+      <div class="music-file-zone" id="trackFileZone" onclick="document.getElementById('trackFileInput').click()">
+        📂 Нажми чтобы выбрать аудио (MP3, OGG, WAV)
+      </div>
+      <input type="file" id="trackFileInput" accept="audio/*" style="display:none" onchange="onTrackFile(this)">
+
+      <label>Название трека *</label>
+      <input type="text" id="trackTitle" placeholder="Введи название трека" maxlength="80" />
+
+      <label>Исполнитель *</label>
+      <input type="text" id="trackArtist" placeholder="Имя исполнителя" maxlength="80" />
+
+      <label>Обложка (PNG / JPEG — бесплатно · GIF — +3 П-Балла)</label>
+      <div class="music-file-zone" id="coverFileZone" onclick="document.getElementById('coverFileInput').click()">
+        🖼️ Нажми чтобы выбрать обложку (необязательно)
+      </div>
+      <input type="file" id="coverFileInput" accept="image/png,image/jpeg,image/gif" style="display:none" onchange="onTrackCover(this)">
+      <img class="music-cover-preview" id="coverPreview" src="" alt="обложка">
+
+      <div class="music-cost-box">
+        Стоимость публикации: <b id="musicCostDisplay">3 П-Балла</b><br>
+        У вас сейчас: <b id="musicModalCoins">0</b> П-Баллов
+      </div>
+      <div class="music-modal-error" id="musicError"></div>
+    </div>
+    <div class="music-modal-footer">
+      <button class="btn-publish-confirm" id="btnPublishTrack" onclick="publishTrack()">Опубликовать</button>
+      <button class="btn-cancel" onclick="closeMusicModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- ЗМЕЙКА МОДАЛКА -->
+<div class="snake-modal-overlay" id="snakeModal">
+  <div class="snake-modal">
+    <div class="snake-modal-header">
+      <span class="snake-modal-title">🐍 Змейка</span>
+      <button class="snake-modal-close" onclick="closeSnake()">×</button>
+    </div>
+    <div class="snake-info-bar">
+      <div class="snake-stat">Счёт: <b id="snakeScore">0</b></div>
+      <div class="snake-stat">Яблок собрано: <b id="snakeApples">0</b></div>
+      <div class="snake-stat snake-stat-coins">П-Баллы: <b id="snakePcoins">0</b></div>
+      <div class="snake-stat" style="margin-left:auto;font-size:11px;color:#b8820a;">следующий балл: <b id="snakeNext">5</b> яблок</div>
+    </div>
+    <div class="snake-reward-msg" id="snakeRewardMsg">+1 П-Балл заработан! 🏆</div>
+    <div class="snake-canvas-wrap">
+      <div class="snake-canvas-container">
+        <canvas id="snakeCanvas" width="400" height="400"></canvas>
+        <div class="snake-overlay-msg" id="snakeOverlay">
+          <h3>🐍 Змейка</h3>
+          <p>5 яблок = 1 П-Балл</p>
+          <button class="btn-snake-start" onclick="startSnake()">Начать игру</button>
+        </div>
+      </div>
+    </div>
+    <div class="snake-dpad" id="snakeDpad">
+      <div class="snake-dpad-grid">
+        <div></div>
+        <div class="dpad-btn" ontouchstart="dpadPress('up');event.preventDefault()" onmousedown="dpadPress('up')">▲</div>
+        <div></div>
+        <div class="dpad-btn" ontouchstart="dpadPress('left');event.preventDefault()" onmousedown="dpadPress('left')">◀</div>
+        <div class="dpad-btn dpad-center"></div>
+        <div class="dpad-btn" ontouchstart="dpadPress('right');event.preventDefault()" onmousedown="dpadPress('right')">▶</div>
+        <div></div>
+        <div class="dpad-btn" ontouchstart="dpadPress('down');event.preventDefault()" onmousedown="dpadPress('down')">▼</div>
+        <div></div>
+      </div>
+    </div>
+    <div class="snake-controls">
+      <div class="snake-hint">Управление: ← ↑ → ↓ или W A S D</div>
+      <button class="btn-play" onclick="startSnake()">Заново</button>
+    </div>
+    <div style="padding:8px 14px 12px;border-top:1px solid #edf0f4;">
+      <div class="snake-top-title">🏅 Топ очков</div>
+      <div id="snakeLeaderboardModal"><div class="snake-top-empty">Загрузка...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА СОЗДАНИЯ ПАБЛИКА -->
+<div class="public-modal-overlay" id="createPublicModal">
+  <div class="public-modal">
+    <div class="public-modal-header">
+      <span class="public-modal-title">📢 Создать паблик</span>
+      <button class="public-modal-close" onclick="closeCreatePublicModal()">×</button>
+    </div>
+    <div class="public-modal-body">
+      <label>Название паблика *</label>
+      <input type="text" id="publicName" placeholder="Например: Котики и пельмени" maxlength="60" />
+
+      <label>Аватарка</label>
+      <div class="public-ava-upload-row">
+        <div class="public-ava-placeholder" id="publicAvaPlaceholder">📢</div>
+        <img class="public-ava-preview" id="publicAvaPreview" src="" alt="аватар">
+        <div class="public-ava-zone" id="publicAvaZone" onclick="document.getElementById('publicAvaInput').click()">
+          🖼️ Нажми чтобы загрузить аватарку (PNG / JPEG / GIF)
+        </div>
+        <input type="file" id="publicAvaInput" accept="image/png,image/jpeg,image/gif" style="display:none" onchange="onPublicAva(this)">
+      </div>
+
+      <label>Описание</label>
+      <textarea id="publicDesc" placeholder="Расскажи о чём этот паблик..."></textarea>
+
+      <div class="public-modal-error" id="publicError"></div>
+    </div>
+    <div class="public-modal-footer">
+      <button class="btn-create-public-confirm" onclick="createPublic()">Создать паблик</button>
+      <button class="btn-cancel" onclick="closeCreatePublicModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== НАСТРОЙКИ =====
+// Адрес твоего бэкенда. Пока запускаем локально — localhost:8000
+const API = '';
+
+// ===== СОСТОЯНИЕ =====
+let currentUser = '';
+let currentUserRole = '';
+let pCoins = 0;
+let postsSinceLastCoin = parseInt(localStorage.getItem("postsSinceLastCoin") || "0");
+const postsToNextCoin = 2;
+let pendingPhoto = null;
+let cdActive = false;
+let cdInterval = null;
+let adRotateInterval = null;
+let currentAdIdx = 0;
+let onlineInterval = null;
+let allPosts = [];
+let allAccounts = [];
+let allAds = [];
+
+// ===== УТИЛИТЫ =====
+function escHtml(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  const token = localStorage.getItem('token');
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Ошибка сервера');
+  return data;
+}
+
+// ===== AUTH =====
+async function doLogin() {
+  const login = document.getElementById('loginInput').value.trim();
+  const pass  = document.getElementById('passInput').value;
+  if (!login || !pass) { showError('loginError', 'Заполни все поля!'); return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Входим...';
+  try {
+    const data = await api('POST', '/login', { login, password: pass });
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('login', login);
+    pCoins = data.pcoins;
+    currentUserRole = data.role || '';
+    postsSinceLastCoin = parseInt(localStorage.getItem('postsSinceLastCoin') || '0');
+    enterApp(login);
+  } catch(e) {
+    showError('loginError', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Войти';
+  }
+}
+
+async function doRegister() {
+  const login = document.getElementById('regLogin').value.trim();
+  const pass  = document.getElementById('regPass').value;
+  const code  = document.getElementById('regCode').value.trim();
+  if (!login || !pass) { showError('regError', 'Заполни логин и пароль!'); return; }
+  if (!code) { showError('regError', 'Введи код из Discord — без него регистрация закрыта!'); return; }
+  if (code !== 'TestCode167') { showError('regError', 'Неверный код! Найди его в новостях Discord.'); return; }
+  const btn = document.getElementById('regBtn');
+  btn.disabled = true; btn.textContent = 'Регистрируемся...';
+  try {
+    const regData = await api('POST', '/register', { login, password: pass, code });
+    if (regData && regData.token) { localStorage.setItem('token', regData.token); localStorage.setItem('login', login); }
+    pCoins = 0; postsSinceLastCoin = parseInt(localStorage.getItem('postsSinceLastCoin') || '0');
+    enterApp(login);
+  } catch(e) {
+    showError('regError', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Создать аккаунт';
+  }
+}
+
+async function enterApp(login) {
+  currentUser = login;
+  document.getElementById('headerUser').textContent = login;
+  updatePCoins();
+  document.getElementById('authPage').classList.remove('active');
+  document.getElementById('authPage').style.display = 'none';
+  document.getElementById('mainPage').style.display = 'block';
+  window.scrollTo(0, 0);
+  await loadAll();
+  pingOnline();
+  onlineInterval = setInterval(async () => {
+    pingOnline();
+    await loadOnline();
+    await loadPosts();
+    await loadAds();
+  }, 10000);
+}
+
+async function doLogout() {
+  if (cdInterval) clearInterval(cdInterval);
+  if (adRotateInterval) clearInterval(adRotateInterval);
+  if (onlineInterval) clearInterval(onlineInterval);
+  try { await api('DELETE', '/online/' + currentUser); } catch(e) {}
+  localStorage.removeItem('token');
+  localStorage.removeItem('login');
+  closeSearch();
+  document.getElementById('mainPage').style.display = 'none';
+  document.getElementById('authPage').style.display = 'flex';
+  document.getElementById('authPage').classList.add('active');
+  document.getElementById('loginInput').value = '';
+  document.getElementById('passInput').value = '';
+  document.getElementById('loginBox').style.display = 'block';
+  document.getElementById('regBox').style.display = 'none';
+  window.scrollTo(0, 0);
+}
+
+function showReg() { document.getElementById('loginBox').style.display='none'; document.getElementById('regBox').style.display='block'; }
+function showLogin() { document.getElementById('regBox').style.display='none'; document.getElementById('loginBox').style.display='block'; }
+
+window.addEventListener('beforeunload', () => {
+  if (!currentUser) return;
+  navigator.sendBeacon(API + '/online/' + currentUser, '');
+});
+
+// ===== ЗАГРУЗКА ДАННЫХ =====
+async function loadAll() {
+  await Promise.all([loadPosts(), loadAccounts(), loadAds(), loadOnline(), loadPCoins(), renderSnakeLeaderboard()]);
+}
+
+async function loadPCoins() {
+  if (!currentUser) return;
+  try {
+    const res = await api("GET", "/pcoins/" + currentUser);
+    pCoins = res.pcoins;
+    updatePCoins();
+  } catch(e) { console.error("Ошибка загрузки П-баллов:", e); }
+}
+
+let loadPostsInFlight = false;
+async function loadPosts() {
+  if (loadPostsInFlight) return;          // не запускаем, если уже идёт запрос
+  loadPostsInFlight = true;
+  try {
+    const fresh = await api('GET', '/posts');
+    allPosts = fresh;
+    renderPosts();
+  } catch(e) { console.error('Ошибка загрузки постов:', e); }
+  finally { loadPostsInFlight = false; }
+}
+
+async function loadAccounts() {
+  try {
+    allAccounts = await api('GET', '/accounts');
+  } catch(e) {}
+}
+
+async function loadAds() {
+  try {
+    allAds = await api('GET', '/ads');
+    renderAd();
+  } catch(e) {}
+}
+
+async function loadOnline() {
+  try {
+    const users = await api('GET', '/online');
+    renderOnline(users);
+  } catch(e) {}
+}
+
+// ===== ОНЛАЙН =====
+async function pingOnline() {
+  try { await api('POST', '/online/ping', { login: currentUser }); } catch(e) {}
+}
+
+function renderOnline(users) {
+  const list = document.getElementById('onlineList');
+  if (!users || !users.length) {
+    list.innerHTML = '<div style="font-size:11px;color:#bbb;padding:2px 0">Никого нет</div>';
+    return;
+  }
+  list.innerHTML = users.map(u => `
+    <div class="online-user">
+      <div class="online-dot"></div>
+      <span class="online-name">${escHtml(u)}${u === currentUser ? ' (вы)' : ''}</span>
+    </div>
+  `).join('');
+}
+
+// ===== П-БАЛЛЫ =====
+function updatePCoins() {
+  document.getElementById('pcAmount').textContent = pCoins;
+  const progress = (postsSinceLastCoin / postsToNextCoin) * 100;
+  document.getElementById('pcBar').style.width = progress + '%';
+  const left = postsToNextCoin - postsSinceLastCoin;
+  document.getElementById('pcSub').innerHTML = `ещё <b>${left}</b> поста до +1 балла`;
+  const mc = document.getElementById('modalCoins');
+  if (mc) mc.textContent = pCoins;
+}
+
+async function addPcoinsToServer(delta) {
+  try {
+    // /pcoins/earn начисляет 1 балл текущему юзеру без прав мода
+    const res = await api('POST', '/pcoins/earn', {});
+    pCoins = res.pcoins;
+    updatePCoins();
+  } catch(e) {
+    console.error('Ошибка начисления П-Баллов:', e);
+  }
+}
+
+// ===== КД =====
+function startCD() {
+  if (cdActive) return;
+  cdActive = true;
+  document.getElementById('cdBanner').classList.add('show');
+  let sec = 60;
+  document.getElementById('cdSec').textContent = sec;
+  cdInterval = setInterval(() => {
+    sec--;
+    document.getElementById('cdSec').textContent = sec;
+    if (sec <= 0) {
+      clearInterval(cdInterval);
+      cdActive = false;
+      document.getElementById('cdBanner').classList.remove('show');
+      loadPosts();
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-def decode_token(token: str) -> Optional[str]:
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload.get("sub")
-    except JWTError:
-        return None
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    if not credentials:
-        raise HTTPException(401, "Требуется авторизация!")
-    login = decode_token(credentials.credentials)
-    if not login:
-        raise HTTPException(401, "Токен недействителен или истёк!")
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == login)
-    )
-    if not acc:
-        raise HTTPException(401, "Пользователь не найден!")
-    return login
-
-
-# ===== ПАРОЛИ =====
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-def verify_password(password: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode(), hashed.encode())
-    except Exception:
-        return False
-
-
-# ===== ХЕЛПЕРЫ =====
-async def get_role(login: str) -> Optional[str]:
-    row = await database.fetch_one(
-        roles_table.select().where(roles_table.c.login == login)
-    )
-    return row["role"] if row else None
-
-async def require_admin_or_mod(login: str):
-    role = await get_role(login)
-    if role not in ("admin", "moderator"):
-        raise HTTPException(403, "Нет прав! Нужна роль админа или модератора.")
-    return role
-
-async def is_timed_out(login: str) -> bool:
-    row = await database.fetch_one(
-        timeouts_table.select().where(timeouts_table.c.login == login)
-    )
-    if not row:
-        return False
-    if row["timeout_until"] > int(time.time() * 1000):
-        return True
-    await database.execute(
-        timeouts_table.delete().where(timeouts_table.c.login == login)
-    )
-    return False
-
-
-# ===== LIFECYCLE =====
-@app.get("/")
-async def serve_root():
-    return FileResponse("/app/static/pelmeni_v2__2_.html", media_type="text/html")
-
-@app.on_event("startup")
-async def startup():
-    await database.connect()
-    existing = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == "Fokza")
-    )
-    if not existing:
-        await database.execute(
-            accounts_table.insert().values(
-                login="Fokza",
-                pass_hash=hash_password("Password111adminqwerty"),
-                pcoins=9999,
-            )
-        )
-    existing_role = await database.fetch_one(
-        roles_table.select().where(roles_table.c.login == "Fokza")
-    )
-    if not existing_role:
-        await database.execute(
-            roles_table.insert().values(login="Fokza", role="admin")
-        )
-
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
-
-
-# ===== МОДЕЛИ =====
-class RegisterRequest(BaseModel):
-    login: str
-    password: str
-    code: Optional[str] = ""
-
-class LoginRequest(BaseModel):
-    login: str
-    password: str
-
-class PostCreate(BaseModel):
-    text: Optional[str] = ""
-    photo: Optional[str] = None
-    time_str: Optional[str] = ""
-
-class CommentCreate(BaseModel):
-    text: str
-
-class AdCreate(BaseModel):
-    title: str
-    text: str
-
-class PingRequest(BaseModel):
-    login: str
-
-class LikeRequest(BaseModel):
-    pass  # пользователь берётся из токена
-
-class PcoinsUpdate(BaseModel):
-    login: str
-    delta: int
-
-class SpendRequest(BaseModel):
-    amount: int
-
-class AssignModRequest(BaseModel):
-    target: str
-
-class BanRequest(BaseModel):
-    target: str
-
-class TimeoutRequest(BaseModel):
-    target: str
-    duration_minutes: int
-
-class DeletePostRequest(BaseModel):
-    pass  # requester берётся из токена
-
-class PostUpdate(BaseModel):
-    text: Optional[str] = None
-    photo: Optional[str] = None
-
-
-class MusicTrackCreate(BaseModel):
-    title: str
-    artist: str
-    has_gif: bool = False
-    audio_data: Optional[str] = None
-    cover_data: Optional[str] = None
-
-
-# ===== AUTH =====
-@app.post("/register")
-@limiter.limit("5/minute")
-async def register(request: Request, req: RegisterRequest):
-    if not req.login.strip() or not req.password:
-        raise HTTPException(400, "Заполни логин и пароль!")
-    if len(req.login) > 32:
-        raise HTTPException(400, "Логин слишком длинный!")
-    if len(req.password) < 6:
-        raise HTTPException(400, "Пароль слишком короткий! Минимум 6 символов.")
-    existing = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.login)
-    )
-    if existing:
-        raise HTTPException(400, "Такой логин уже занят!")
-    approved = req.code == "TestCode167"
-    await database.execute(
-        accounts_table.insert().values(
-            login=req.login,
-            pass_hash=hash_password(req.password),
-            pcoins=0,
-        )
-    )
-    token = create_token(req.login)
-    return {"ok": True, "approved": approved, "token": token, "login": req.login}
-
-@app.post("/login")
-@limiter.limit("10/minute")
-async def login(request: Request, req: LoginRequest):
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.login)
-    )
-    if not acc:
-        raise HTTPException(400, "Такого аккаунта нет. Зарегистрируйся!")
-    if not verify_password(req.password, acc["pass_hash"]):
-        raise HTTPException(400, "Неверный пароль!")
-    role = await get_role(req.login)
-    token = create_token(req.login)
-    return {"ok": True, "login": acc["login"], "pcoins": acc["pcoins"], "role": role, "token": token}
-
-@app.get("/accounts")
-async def get_accounts():
-    rows = await database.fetch_all(accounts_table.select())
-    return [{"login": r["login"]} for r in rows]
-
-@app.get("/role/{login}")
-async def get_user_role(login: str):
-    role = await get_role(login)
-    return {"login": login, "role": role}
-
-
-# ===== ПОСТЫ =====
-@app.get("/posts")
-async def get_posts():
-    rows = await database.fetch_all(posts_table.select().order_by(posts_table.c.created_at.desc()))
-    result = []
-    for p in rows:
-        comments = await database.fetch_all(
-            comments_table.select()
-            .where(comments_table.c.post_id == p["id"])
-            .order_by(comments_table.c.created_at.asc())
-        )
-        liked_by = json.loads(p["liked_by"]) if p["liked_by"] else []
-        result.append({
-            "id": p["id"],
-            "author": p["author"],
-            "text": p["text"],
-            "photo": p["photo"],
-            "likes": p["likes"],
-            "likedBy": liked_by,
-            "time": p["time_str"],
-            "comments": [{"author": c["author"], "text": c["text"]} for c in comments],
-        })
-    return result
-
-@app.post("/posts")
-@limiter.limit("5/minute")
-async def create_post(request: Request, post: PostCreate, current_user: str = Depends(get_current_user)):
-    if not post.text and not post.photo:
-        raise HTTPException(400, "Пост пустой!")
-    if await is_timed_out(current_user):
-        raise HTTPException(403, "Ты в тайм-ауте! Нельзя создавать посты.")
-    post_id = await database.execute(
-        posts_table.insert().values(
-            author=current_user,
-            text=post.text or "",
-            photo=post.photo,
-            likes=0,
-            liked_by="[]",
-            time_str=post.time_str,
-            created_at=int(time.time() * 1000),
-        )
-    )
-    return {"ok": True, "id": post_id}
-
-@app.post("/posts/{post_id}/like")
-async def toggle_like(post_id: int, current_user: str = Depends(get_current_user)):
-    post = await database.fetch_one(
-        posts_table.select().where(posts_table.c.id == post_id)
-    )
-    if not post:
-        raise HTTPException(404, "Пост не найден")
-    liked_by = json.loads(post["liked_by"]) if post["liked_by"] else []
-    if current_user in liked_by:
-        liked_by.remove(current_user)
-    else:
-        liked_by.append(current_user)
-    await database.execute(
-        posts_table.update()
-        .where(posts_table.c.id == post_id)
-        .values(likes=len(liked_by), liked_by=json.dumps(liked_by))
-    )
-    return {"ok": True, "likes": len(liked_by), "likedBy": liked_by}
-
-@app.post("/posts/{post_id}/comments")
-@limiter.limit("10/minute")
-async def add_comment(request: Request, post_id: int, req: CommentCreate, current_user: str = Depends(get_current_user)):
-    if not req.text.strip():
-        raise HTTPException(400, "Комментарий пустой!")
-    if await is_timed_out(current_user):
-        raise HTTPException(403, "Ты в тайм-ауте! Нельзя комментировать.")
-    await database.execute(
-        comments_table.insert().values(
-            post_id=post_id,
-            author=current_user,
-            text=req.text,
-            created_at=int(time.time() * 1000),
-        )
-    )
-    return {"ok": True}
-
-@app.delete("/posts/{post_id}")
-async def delete_post(post_id: int, current_user: str = Depends(get_current_user)):
-    post = await database.fetch_one(
-        posts_table.select().where(posts_table.c.id == post_id)
-    )
-    if not post:
-        raise HTTPException(404, "Пост не найден")
-    role = await get_role(current_user)
-    is_owner = post["author"] == current_user
-    is_superuser = current_user == "Fokzz_Back"
-    is_admin_mod = role in ("admin", "moderator")
-    if not (is_owner or is_superuser or is_admin_mod):
-        raise HTTPException(403, "Нет прав для удаления этого поста!")
-    await database.execute(
-        comments_table.delete().where(comments_table.c.post_id == post_id)
-    )
-    await database.execute(
-        posts_table.delete().where(posts_table.c.id == post_id)
-    )
-    return {"ok": True}
-
-@app.patch("/posts/{post_id}")
-async def edit_post(post_id: int, upd: PostUpdate, current_user: str = Depends(get_current_user)):
-    post = await database.fetch_one(
-        posts_table.select().where(posts_table.c.id == post_id)
-    )
-    if not post:
-        raise HTTPException(404, "Пост не найден")
-    if post["author"] != current_user:
-        raise HTTPException(403, "Можно редактировать только свои посты!")
-    values = {}
-    if upd.text is not None:
-        values["text"] = upd.text
-    if upd.photo is not None:
-        values["photo"] = upd.photo
-    if not values:
-        raise HTTPException(400, "Нечего обновлять")
-    await database.execute(
-        posts_table.update().where(posts_table.c.id == post_id).values(**values)
-    )
-    return {"ok": True}
-
-
-# ===== ОБЪЯВЛЕНИЯ =====
-@app.get("/ads")
-async def get_ads():
-    rows = await database.fetch_all(ads_table.select().order_by(ads_table.c.created_at.desc()))
-    return [{"id": r["id"], "author": r["author"], "title": r["title"], "text": r["text"]} for r in rows]
-
-@app.post("/ads")
-@limiter.limit("3/minute")
-async def create_ad(request: Request, ad: AdCreate, current_user: str = Depends(get_current_user)):
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == current_user)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    if acc["pcoins"] < 10:
-        raise HTTPException(400, f"Недостаточно П-Баллов! Нужно 10, у тебя {acc['pcoins']}.")
-    await database.execute(
-        accounts_table.update()
-        .where(accounts_table.c.login == current_user)
-        .values(pcoins=acc["pcoins"] - 10)
-    )
-    ad_id = await database.execute(
-        ads_table.insert().values(
-            author=current_user,
-            title=ad.title,
-            text=ad.text,
-            created_at=int(time.time() * 1000),
-        )
-    )
-    return {"ok": True, "id": ad_id, "pcoins": acc["pcoins"] - 10}
-
-
-# ===== П-БАЛЛЫ =====
-@app.post("/pcoins/earn")
-async def earn_pcoins(current_user: str = Depends(get_current_user)):
-    """Начисляет 1 П-Балл текущему пользователю (за посты, без прав мода)."""
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == current_user)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    new_val = acc["pcoins"] + 1
-    await database.execute(
-        accounts_table.update()
-        .where(accounts_table.c.login == current_user)
-        .values(pcoins=new_val)
-    )
-    return {"ok": True, "pcoins": new_val}
-
-@app.post("/pcoins/spend")
-@limiter.limit("20/minute")
-async def spend_pcoins(request: Request, req: SpendRequest, current_user: str = Depends(get_current_user)):
-    """Списывает указанное количество П-Баллов у текущего пользователя."""
-    if req.amount <= 0:
-        raise HTTPException(400, "Сумма должна быть больше нуля!")
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == current_user)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    if acc["pcoins"] < req.amount:
-        raise HTTPException(400, f"Недостаточно П-Баллов! Нужно {req.amount}, у тебя {acc['pcoins']}.")
-    new_val = acc["pcoins"] - req.amount
-    await database.execute(
-        accounts_table.update()
-        .where(accounts_table.c.login == current_user)
-        .values(pcoins=new_val)
-    )
-    return {"ok": True, "pcoins": new_val}
-
-@app.post("/pcoins/add")
-async def add_pcoins(req: PcoinsUpdate, current_user: str = Depends(get_current_user)):
-    await require_admin_or_mod(current_user)
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.login)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    new_val = acc["pcoins"] + req.delta
-    await database.execute(
-        accounts_table.update()
-        .where(accounts_table.c.login == req.login)
-        .values(pcoins=new_val)
-    )
-    return {"ok": True, "pcoins": new_val}
-
-@app.get("/pcoins/{login}")
-async def get_pcoins(login: str):
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == login)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    return {"pcoins": acc["pcoins"]}
-
-
-# ===== ОНЛАЙН =====
-@app.post("/online/ping")
-async def ping_online(req: PingRequest):
-    now = int(time.time() * 1000)
-    existing = await database.fetch_one(
-        online_table.select().where(online_table.c.login == req.login)
-    )
-    if existing:
-        await database.execute(
-            online_table.update()
-            .where(online_table.c.login == req.login)
-            .values(last_seen=now)
-        )
-    else:
-        await database.execute(
-            online_table.insert().values(login=req.login, last_seen=now)
-        )
-    return {"ok": True}
-
-@app.delete("/online/{login}")
-async def remove_online(login: str):
-    await database.execute(
-        online_table.delete().where(online_table.c.login == login)
-    )
-    return {"ok": True}
-
-@app.get("/online")
-async def get_online():
-    cutoff = int(time.time() * 1000) - 20000
-    rows = await database.fetch_all(
-        online_table.select().where(online_table.c.last_seen > cutoff)
-    )
-    return [r["login"] for r in rows]
-
-
-# ===== МОДЕРАЦИЯ =====
-@app.post("/mod/assign")
-async def assign_moderator(req: AssignModRequest, current_user: str = Depends(get_current_user)):
-    requester_role = await get_role(current_user)
-    if requester_role != "admin":
-        raise HTTPException(403, "Только админ может назначать модераторов!")
-    target_acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.target)
-    )
-    if not target_acc:
-        raise HTTPException(404, f"Пользователь '{req.target}' не найден!")
-    existing_role = await database.fetch_one(
-        roles_table.select().where(roles_table.c.login == req.target)
-    )
-    if existing_role:
-        if existing_role["role"] == "admin":
-            raise HTTPException(400, "Нельзя изменить роль другого админа!")
-        await database.execute(
-            roles_table.update()
-            .where(roles_table.c.login == req.target)
-            .values(role="moderator")
-        )
-    else:
-        await database.execute(
-            roles_table.insert().values(login=req.target, role="moderator")
-        )
-    return {"ok": True, "message": f"{req.target} теперь модератор!"}
-
-@app.post("/mod/ban")
-async def ban_user(req: BanRequest, current_user: str = Depends(get_current_user)):
-    requester_role = await require_admin_or_mod(current_user)
-    if current_user == req.target:
-        raise HTTPException(400, "Нельзя забанить самого себя!")
-    target_acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.target)
-    )
-    if not target_acc:
-        raise HTTPException(404, f"Пользователь '{req.target}' не найден!")
-    target_role = await get_role(req.target)
-    if target_role in ("admin", "moderator") and requester_role != "admin":
-        raise HTTPException(403, "Модератор не может банить других модераторов или админов!")
-    if target_role == "admin":
-        raise HTTPException(403, "Нельзя забанить админа!")
-    await database.execute(accounts_table.delete().where(accounts_table.c.login == req.target))
-    await database.execute(roles_table.delete().where(roles_table.c.login == req.target))
-    await database.execute(online_table.delete().where(online_table.c.login == req.target))
-    await database.execute(timeouts_table.delete().where(timeouts_table.c.login == req.target))
-    return {"ok": True, "message": f"{req.target} забанен и удалён!"}
-
-@app.post("/mod/timeout")
-async def timeout_user(req: TimeoutRequest, current_user: str = Depends(get_current_user)):
-    requester_role = await require_admin_or_mod(current_user)
-    if current_user == req.target:
-        raise HTTPException(400, "Нельзя дать тайм-аут самому себе!")
-    target_acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == req.target)
-    )
-    if not target_acc:
-        raise HTTPException(404, f"Пользователь '{req.target}' не найден!")
-    target_role = await get_role(req.target)
-    if target_role in ("admin", "moderator") and requester_role != "admin":
-        raise HTTPException(403, "Модератор не может давать тайм-аут другим модераторам или админам!")
-    if target_role == "admin":
-        raise HTTPException(403, "Нельзя дать тайм-аут админу!")
-    if req.duration_minutes <= 0:
-        raise HTTPException(400, "Длительность тайм-аута должна быть больше 0!")
-    timeout_until = int(time.time() * 1000) + req.duration_minutes * 60 * 1000
-    existing = await database.fetch_one(
-        timeouts_table.select().where(timeouts_table.c.login == req.target)
-    )
-    if existing:
-        await database.execute(
-            timeouts_table.update()
-            .where(timeouts_table.c.login == req.target)
-            .values(timeout_until=timeout_until)
-        )
-    else:
-        await database.execute(
-            timeouts_table.insert().values(login=req.target, timeout_until=timeout_until)
-        )
-    return {"ok": True, "message": f"{req.target} получил тайм-аут на {req.duration_minutes} мин.", "timeout_until": timeout_until}
-
-@app.get("/mod/timeout/{login}")
-async def check_timeout(login: str):
-    timed_out = await is_timed_out(login)
-    if timed_out:
-        row = await database.fetch_one(
-            timeouts_table.select().where(timeouts_table.c.login == login)
-        )
-        return {"timed_out": True, "timeout_until": row["timeout_until"] if row else None}
-    return {"timed_out": False}
-
-@app.get("/mod/list")
-async def list_moderators():
-    rows = await database.fetch_all(roles_table.select())
-    return [{"login": r["login"], "role": r["role"]} for r in rows]
-
-@app.delete("/mod/clear-feed")
-async def clear_feed(current_user: str = Depends(get_current_user)):
-    requester_role = await get_role(current_user)
-    if requester_role != "admin":
-        raise HTTPException(403, "Только админ может очистить ленту!")
-    await database.execute(comments_table.delete())
-    await database.execute(posts_table.delete())
-    return {"ok": True, "message": "Лента очищена!"}
-
-
-# ===== ЗМЕЙКА: ЛИДЕРБОРД =====
-class SnakeScoreRequest(BaseModel):
-    score: int
-
-@app.post("/snake/score")
-async def submit_snake_score(req: SnakeScoreRequest, current_user: str = Depends(get_current_user)):
-    if req.score <= 0:
-        return {"ok": True, "updated": False}
-    existing = await database.fetch_one(
-        snake_scores_table.select().where(snake_scores_table.c.login == current_user)
-    )
-    if existing:
-        if req.score > existing["score"]:
-            await database.execute(
-                snake_scores_table.update()
-                .where(snake_scores_table.c.login == current_user)
-                .values(score=req.score, updated_at=int(time.time() * 1000))
-            )
-            return {"ok": True, "updated": True, "best": req.score}
-        else:
-            return {"ok": True, "updated": False, "best": existing["score"]}
-    else:
-        await database.execute(
-            snake_scores_table.insert().values(
-                login=current_user,
-                score=req.score,
-                updated_at=int(time.time() * 1000),
-            )
-        )
-        return {"ok": True, "updated": True, "best": req.score}
-
-@app.get("/snake/leaderboard")
-async def get_snake_leaderboard():
-    rows = await database.fetch_all(
-        snake_scores_table.select().order_by(snake_scores_table.c.score.desc()).limit(10)
-    )
-    return [{"name": r["login"], "score": r["score"]} for r in rows]
-
-
-# ===== МУЗЫКА =====
-@app.post("/music")
-@limiter.limit("10/minute")
-async def publish_music(request: Request, req: MusicTrackCreate, current_user: str = Depends(get_current_user)):
-    cost = 3 + (3 if req.has_gif else 0)
-    acc = await database.fetch_one(
-        accounts_table.select().where(accounts_table.c.login == current_user)
-    )
-    if not acc:
-        raise HTTPException(404, "Пользователь не найден")
-    if acc["pcoins"] < cost:
-        raise HTTPException(400, f"Недостаточно П-Баллов! Нужно {cost}, у тебя {acc['pcoins']}.")
-    new_pcoins = acc["pcoins"] - cost
-    await database.execute(
-        accounts_table.update()
-        .where(accounts_table.c.login == current_user)
-        .values(pcoins=new_pcoins)
-    )
-    import uuid
-    track_id = str(int(time.time() * 1000)) + "_" + str(uuid.uuid4()).replace("-", "")[:9]
-    from datetime import datetime
-    now_str = datetime.now().strftime("%H:%M, %d.%m.%Y")
-    await database.execute(
-        music_tracks_table.insert().values(
-            id=track_id,
-            title=req.title,
-            artist=req.artist,
-            author=current_user,
-            time_str=now_str,
-            has_gif=req.has_gif,
-            audio_data=req.audio_data,
-            cover_data=req.cover_data,
-            created_at=int(time.time() * 1000),
-        )
-    )
-    return {"ok": True, "id": track_id, "pcoins": new_pcoins}
-
-
-@app.get("/music")
-async def get_music():
-    rows = await database.fetch_all(
-        music_tracks_table.select()
-        .order_by(music_tracks_table.c.created_at.desc())
-        .limit(50)
-    )
-    return [
-        {
-            "id": r["id"],
-            "title": r["title"],
-            "artist": r["artist"],
-            "author": r["author"],
-            "time": r["time_str"],
-            "hasGif": r["has_gif"],
-            "hasCover": r["cover_data"] is not None,
-            "cover_data": r["cover_data"],
+  }, 1000);
+}
+
+// ===== ПОСТЫ =====
+async function addPost() {
+  const text = document.getElementById('newPostText').value.trim();
+  if (!text && !pendingPhoto) return;
+  const btn = document.getElementById('postBtn');
+  btn.disabled = true; btn.textContent = 'Отправка...';
+  const now = new Date();
+  const time_str = now.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' }) + ', сегодня';
+  try {
+    await api('POST', '/posts', {
+      author: currentUser,
+      text,
+      photo: pendingPhoto,
+      time_str,
+    });
+    document.getElementById('newPostText').value = '';
+    removeAttach();
+    postsSinceLastCoin++;
+    localStorage.setItem("postsSinceLastCoin", postsSinceLastCoin);
+    if (postsSinceLastCoin >= postsToNextCoin) {
+      postsSinceLastCoin = 0;
+      localStorage.setItem("postsSinceLastCoin", 0);
+      await addPcoinsToServer(1);
+    } else {
+      updatePCoins();
+    }
+    if (!cdActive) startCD();
+    await loadPosts();
+  } catch(e) {
+    alert('Ошибка: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Отправить';
+  }
+}
+
+// Хранит какие секции комментов открыты и сколько показывать
+const openComments = new Set();
+const shownComments = {};
+const COMMENTS_STEP = 5;
+
+function renderPostMedia(src) {
+  if (!src) return '';
+  if (src.startsWith('data:video/') || src.startsWith('data:application/octet-stream')) {
+    return `<video class="post-video" src="${src}" controls preload="metadata"></video>`;
+  }
+  // image/* включая gif — анимация работает в <img> автоматически
+  return `<img class="post-img" src="${src}" alt="медиа">`;
+}
+
+function buildPostEl(p) {
+  const isOpen = openComments.has(p.id);
+  const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
+  const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
+  const isOwner = currentUser && p.author === currentUser;
+  const isFokzzBack = currentUser === 'Fokzz_Back';
+  const showEdit = isOwner;
+  const showDelete = isOwner || isFokzzBack;
+  const div = document.createElement('div');
+  div.className = 'post';
+  div.id = 'post-' + p.id;
+  div.innerHTML = `
+    <div class="post-head">
+      <div class="post-ava">${escHtml(p.author[0].toUpperCase())}</div>
+      <div class="post-info">
+        <div class="post-author">${escHtml(p.author)}</div>
+        <div class="post-time">${escHtml(p.time)}</div>
+      </div>
+    </div>
+    <div class="post-body">
+      ${p.text ? `<div class="post-text">${escHtml(p.text)}</div>` : ''}
+      ${p.photo ? renderPostMedia(p.photo) : ''}
+    </div>
+    <div class="post-actions">
+      <span class="post-action" onclick="toggleComments(${p.id})">Комментарии (${(p.comments||[]).length})</span>
+      <span class="post-action">Поделиться</span>
+      <span class="${likeClass}" onclick="toggleLike(${p.id})">${likedByMe ? '\u2665' : '\u2661'}${p.likes>0?' '+p.likes:''}</span>
+      ${showEdit ? `<button class="post-btn-edit" onclick="startEditPost(${p.id})">✏️ Редактировать</button>` : ''}
+      ${showDelete ? `<button class="post-btn-delete" onclick="deletePost(${p.id})">🗑 Удалить</button>` : ''}
+    </div>
+    <div class="comments-section${isOpen ? ' open' : ''}" id="comments-${p.id}">
+      <div id="comments-list-${p.id}">${renderCommentsList(p)}</div>
+      <div class="comment-input-row">
+        <input type="text" id="comment-input-${p.id}" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter')sendComment(${p.id})"/>
+        <button class="btn-comment-send" onclick="sendComment(${p.id})">Отправить</button>
+      </div>
+    </div>`;
+  return div;
+}
+
+function patchPostEl(p) {
+  // Обновляет только лайки и счётчик комментов — тело поста (видео/гиф) не трогает
+  const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
+  const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
+
+  const likeEl = document.querySelector(`#post-${p.id} .post-like-count`);
+  if (likeEl) {
+    likeEl.textContent = (likedByMe ? '\u2665' : '\u2661') + (p.likes > 0 ? ' ' + p.likes : '');
+    likeEl.className = likeClass;
+    likeEl.onclick = () => toggleLike(p.id);
+  }
+
+  const commentBtn = document.querySelector(`#post-${p.id} .post-action`);
+  if (commentBtn) commentBtn.textContent = `Комментарии (${(p.comments||[]).length})`;
+
+  // Если секция комментов открыта — обновляем список
+  if (openComments.has(p.id)) {
+    const cl = document.getElementById('comments-list-' + p.id);
+    if (cl) cl.innerHTML = renderCommentsList(p);
+  }
+}
+
+function renderPosts() {
+  const list = document.getElementById('postsList');
+
+  if (!allPosts.length) {
+    list.innerHTML = '<div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:20px;text-align:center;color:#aaa;font-size:13px;">Пока нет постов. Напиши первым!</div>';
+    return;
+  }
+
+  // Убираем заглушку "нет постов" если она есть
+  // Убираем только прямых детей, которые не являются постами (не трогаем потомков внутри постов)
+  list.querySelectorAll(':scope > :not(.post)').forEach(el => el.remove());
+
+  const newIds = new Set(allPosts.map(p => p.id));
+
+  // Удаляем посты которых больше нет на сервере
+  list.querySelectorAll('.post[id^="post-"]').forEach(el => {
+    const id = parseInt(el.id.replace('post-', ''));
+    if (!newIds.has(id)) el.remove();
+  });
+
+  // Добавляем новые / патчим существующие, сохраняем порядок
+  allPosts.forEach((p, i) => {
+    const existing = document.getElementById('post-' + p.id);
+    if (!existing) {
+      const newEl = buildPostEl(p);
+      const allEls = list.querySelectorAll('.post[id^="post-"]');
+      if (allEls.length === 0 || i === 0) {
+        list.prepend(newEl);
+      } else {
+        // Вставить после предыдущего поста в списке данных
+        const prevPost = document.getElementById('post-' + allPosts[i - 1].id);
+        if (prevPost) prevPost.after(newEl); else list.append(newEl);
+      }
+    } else {
+      patchPostEl(p);
+    }
+  });
+}
+function renderCommentsList(p) {
+  const comments = p.comments || [];
+  if (!comments.length) return '<div class="no-comments">Комментариев пока нет</div>';
+  const shown = shownComments[p.id] || COMMENTS_STEP;
+  const visible = comments.slice(-shown); // показываем последние N
+  const hidden = comments.length - visible.length;
+  let html = '';
+  if (hidden > 0) {
+    html += `<div style="text-align:center;margin-bottom:6px;">
+      <span onclick="showMoreComments(${p.id})" style="font-size:11px;color:#4a76a8;cursor:pointer;font-weight:700;">▲ Показать ещё ${Math.min(hidden, COMMENTS_STEP)} (всего скрыто: ${hidden})</span>
+    </div>`;
+  }
+  html += visible.map(c => `
+    <div class="comment">
+      <div class="comment-ava">${escHtml(c.author[0].toUpperCase())}</div>
+      <div class="comment-bubble">
+        <div class="comment-author">${escHtml(c.author)}</div>
+        <div class="comment-text">${escHtml(c.text)}</div>
+      </div>
+    </div>
+  `).join('');
+  return html;
+}
+
+function showMoreComments(postId) {
+  shownComments[postId] = (shownComments[postId] || COMMENTS_STEP) + COMMENTS_STEP;
+  const post = allPosts.find(p => p.id === postId);
+  if (post) {
+    document.getElementById('comments-list-' + postId).innerHTML = renderCommentsList(post);
+  }
+}
+
+function toggleComments(id) {
+  const sec = document.getElementById('comments-' + id);
+  sec.classList.toggle('open');
+  if (sec.classList.contains('open')) {
+    openComments.add(id);
+    document.getElementById('comment-input-' + id).focus();
+  } else {
+    openComments.delete(id);
+  }
+}
+
+async function sendComment(postId) {
+  const input = document.getElementById('comment-input-' + postId);
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    await api('POST', `/posts/${postId}/comments`, { author: currentUser, text });
+    input.value = '';
+    // Обновляем только комменты этого поста, не перерисовывая всю ленту
+    const updatedPosts = await api('GET', '/posts');
+    allPosts = updatedPosts;
+    const post = allPosts.find(p => p.id === postId);
+    if (post) {
+      // Сбрасываем лимит показа чтобы был виден новый комментарий
+      shownComments[postId] = Math.max(shownComments[postId] || COMMENTS_STEP, (post.comments||[]).length);
+      document.getElementById('comments-list-' + postId).innerHTML = renderCommentsList(post);
+      // Обновляем счётчик в кнопке
+      const actionBtn = document.querySelector(`#post-${postId} .post-action`);
+      if (actionBtn) actionBtn.textContent = `Комментарии (${(post.comments||[]).length})`;
+    }
+  } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+async function deletePost(id) {
+  if (!confirm('Удалить этот пост?')) return;
+  try {
+    await api('DELETE', `/posts/${id}`);
+    allPosts = allPosts.filter(p => p.id !== id);
+    const el = document.getElementById('post-' + id);
+    if (el) el.remove();
+    if (!allPosts.length) renderPosts();
+  } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+function startEditPost(id) {
+  const post = allPosts.find(p => p.id === id);
+  if (!post) return;
+  const bodyEl = document.querySelector(`#post-${id} .post-body`);
+  if (!bodyEl) return;
+  const currentText = post.text || '';
+  bodyEl.innerHTML = `
+    <textarea class="post-edit-area" id="edit-area-${id}">${escHtml(currentText)}</textarea>
+    <div class="post-edit-row">
+      <button class="post-edit-save" onclick="saveEditPost(${id})">💾 Сохранить</button>
+      <button class="post-edit-cancel" onclick="cancelEditPost(${id})">Отмена</button>
+    </div>`;
+  document.getElementById(`edit-area-${id}`).focus();
+  // Hide edit button while editing
+  const editBtn = document.querySelector(`#post-${id} .post-btn-edit`);
+  if (editBtn) editBtn.style.display = 'none';
+}
+
+function cancelEditPost(id) {
+  const post = allPosts.find(p => p.id === id);
+  if (!post) return;
+  const bodyEl = document.querySelector(`#post-${id} .post-body`);
+  if (!bodyEl) return;
+  bodyEl.innerHTML = `
+    ${post.text ? `<div class="post-text">${escHtml(post.text)}</div>` : ''}
+    ${post.photo ? renderPostMedia(post.photo) : ''}`;
+  const editBtn = document.querySelector(`#post-${id} .post-btn-edit`);
+  if (editBtn) editBtn.style.display = '';
+}
+
+async function saveEditPost(id) {
+  const textarea = document.getElementById(`edit-area-${id}`);
+  if (!textarea) return;
+  const newText = textarea.value.trim();
+  try {
+    await api('PATCH', `/posts/${id}`, { text: newText });
+    const post = allPosts.find(p => p.id === id);
+    if (post) post.text = newText;
+    cancelEditPost(id);
+  } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+async function toggleLike(id) {
+  try {
+    const res = await api('POST', `/posts/${id}/like`, { user: currentUser });
+    // Обновляем только этот пост локально
+    const post = allPosts.find(p => p.id === id);
+    if (post) {
+      post.likes = res.likes;
+      post.likedBy = res.likedBy;
+    }
+    const likeEl = document.querySelector(`#post-${id} .post-like-count`);
+    if (likeEl) {
+      const likedByMe = Array.isArray(res.likedBy) && res.likedBy.includes(currentUser);
+      likeEl.textContent = (likedByMe ? '\u2665' : '\u2661') + (res.likes > 0 ? ' ' + res.likes : '');
+      likeEl.className = 'post-like-count' + (likedByMe ? ' liked-by-me' : (res.likes > 0 ? ' has-likes' : ''));
+    }
+  } catch(e) {}
+}
+
+// ===== ПОИСК =====
+function doSearch(q) {
+  q = q.trim();
+  const dd = document.getElementById('searchDropdown');
+  const resFeed = document.getElementById('searchResultsFeed');
+  const resList = document.getElementById('searchResultsList');
+  const resLabel = document.getElementById('searchResultsLabel');
+  if (!q) { dd.classList.remove('open'); resFeed.classList.remove('open'); return; }
+  const ql = q.toLowerCase();
+  const userHits = allAccounts.filter(a => a.login.toLowerCase().includes(ql));
+  const postHits = allPosts.filter(p => p.text && p.text.toLowerCase().includes(ql));
+  if (!userHits.length && !postHits.length) {
+    dd.innerHTML = '<div class="search-no-results">Ничего не найдено</div>';
+  } else {
+    let html = '';
+    userHits.slice(0,4).forEach(a => {
+      html += `<div class="search-result-item">
+        <div class="sr-ava">${a.login[0].toUpperCase()}</div>
+        <div class="sr-info"><div class="sr-title">${escHtml(a.login)}</div><div class="sr-sub">Пользователь</div></div>
+      </div>`;
+    });
+    postHits.slice(0,4).forEach(p => {
+      html += `<div class="search-result-item">
+        <div class="sr-ava post-type">П</div>
+        <div class="sr-info"><div class="sr-title">${escHtml(p.author)}</div><div class="sr-sub">${escHtml(p.text.slice(0,50))}${p.text.length>50?'…':''}</div></div>
+        <span class="sr-tag">пост</span>
+      </div>`;
+    });
+    dd.innerHTML = html;
+  }
+  dd.classList.add('open');
+  resLabel.textContent = `Результаты для «${q}»:`;
+  if (!userHits.length && !postHits.length) {
+    resList.innerHTML = '<div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:16px;text-align:center;color:#aaa;font-size:13px;">Ничего не найдено</div>';
+  } else {
+    let html = '';
+    if (userHits.length) {
+      html += `<div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:10px 14px;font-size:12px;font-weight:700;color:#4a76a8;">Пользователи</div>`;
+      userHits.forEach(a => {
+        html += `<div class="post" style="padding:10px 14px;display:flex;align-items:center;gap:10px;">
+          <div class="post-ava" style="width:38px;height:38px;font-size:16px;">${a.login[0].toUpperCase()}</div>
+          <div><div style="font-size:13px;font-weight:700;color:#2a5885;">${escHtml(a.login)}</div><div style="font-size:11px;color:#aaa;">Участник сети</div></div>
+        </div>`;
+      });
+    }
+    if (postHits.length) {
+      html += `<div style="background:#fff;border:1px solid #d3d9e0;border-radius:4px;padding:10px 14px;font-size:12px;font-weight:700;color:#4a76a8;margin-top:4px;">Посты</div>`;
+      postHits.forEach(p => {
+        html += `<div class="post">
+          <div class="post-head">
+            <div class="post-ava">${escHtml(p.author[0].toUpperCase())}</div>
+            <div class="post-info"><div class="post-author">${escHtml(p.author)}</div><div class="post-time">${escHtml(p.time)}</div></div>
+          </div>
+          <div class="post-body"><div class="post-text">${escHtml(p.text)}</div>${p.photo ? renderPostMedia(p.photo) : ''}</div>
+        </div>`;
+      });
+    }
+    resList.innerHTML = html;
+  }
+  resFeed.classList.add('open');
+}
+
+function closeSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchDropdown').classList.remove('open');
+  document.getElementById('searchResultsFeed').classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.header-search-wrap')) document.getElementById('searchDropdown').classList.remove('open');
+});
+
+// ===== ОБЪЯВЛЕНИЯ =====
+function openAdModal() {
+  document.getElementById('adTitle').value = '';
+  document.getElementById('adText').value = '';
+  document.getElementById('adError').classList.remove('show');
+  document.getElementById('modalCoins').textContent = pCoins;
+  document.getElementById('adModal').classList.add('open');
+}
+function closeAdModal() { document.getElementById('adModal').classList.remove('open'); }
+
+async function publishAd() {
+  const title = document.getElementById('adTitle').value.trim();
+  const text  = document.getElementById('adText').value.trim();
+  const errEl = document.getElementById('adError');
+  if (!title) { errEl.textContent = 'Введи заголовок!'; errEl.classList.add('show'); return; }
+  if (!text)  { errEl.textContent = 'Введи текст!'; errEl.classList.add('show'); return; }
+  try {
+    const res = await api('POST', '/ads', { author: currentUser, title, text });
+    pCoins = res.pcoins;
+    updatePCoins();
+    closeAdModal();
+    await loadAds();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
+
+function renderAd() {
+  const el = document.getElementById('sidebarAdContent');
+  if (!allAds.length) { el.innerHTML = '<div class="sad-empty">Объявлений пока нет</div>'; return; }
+  const ad = allAds[currentAdIdx % allAds.length];
+  el.innerHTML = `<div class="sad-body">
+    <div class="sad-title">${escHtml(ad.title)}</div>
+    <div class="sad-text">${escHtml(ad.text)}</div>
+    <div class="sad-author">— ${escHtml(ad.author)}</div>
+  </div>`;
+}
+
+function startAdRotation() {
+  if (adRotateInterval) clearInterval(adRotateInterval);
+  adRotateInterval = setInterval(() => {
+    if (allAds.length > 1) { currentAdIdx = (currentAdIdx + 1) % allAds.length; renderAd(); }
+  }, 8000);
+}
+
+// ===== ФОТО / GIF / ВИДЕО =====
+const MAX_MEDIA_MB = 20;
+
+function onPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const isVideo = file.type.startsWith('video/');
+  const isGif   = file.type === 'image/gif';
+
+  if (file.size > MAX_MEDIA_MB * 1024 * 1024) {
+    alert(`Файл слишком большой! Максимум ${MAX_MEDIA_MB} МБ.`);
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingPhoto = e.target.result;
+
+    const img = document.getElementById('previewImg');
+    const vid = document.getElementById('previewVid');
+    const badge = document.getElementById('previewBadge');
+
+    if (isVideo) {
+      img.style.display = 'none';
+      vid.src = pendingPhoto;
+      vid.style.display = 'block';
+      badge.textContent = 'ВИДЕО';
+      badge.className = 'attach-type-badge vid';
+    } else {
+      vid.style.display = 'none';
+      vid.src = '';
+      img.src = pendingPhoto;
+      img.style.display = 'block';
+      if (isGif) {
+        badge.textContent = 'GIF';
+        badge.className = 'attach-type-badge gif';
+      } else {
+        badge.textContent = 'ФОТО';
+        badge.className = 'attach-type-badge img';
+      }
+    }
+    badge.style.display = 'inline-block';
+
+    const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+    document.getElementById('previewName').textContent = file.name + ' · ' + sizeMb + ' МБ';
+    document.getElementById('attachPreview').classList.add('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAttach() {
+  pendingPhoto = null;
+  const input = document.getElementById('photoFile');
+  input.value = '';
+  const img = document.getElementById('previewImg');
+  const vid = document.getElementById('previewVid');
+  img.src = ''; img.style.display = 'none';
+  vid.src = ''; vid.style.display = 'none';
+  document.getElementById('previewName').textContent = '';
+  document.getElementById('previewBadge').style.display = 'none';
+  document.getElementById('attachPreview').classList.remove('show');
+}
+
+// ===== МЕНЮ: ЛЕНТА / ИГРЫ / МЬЮЗИК / ПАБЛИКИ =====
+function showFeed() {
+  document.getElementById('mainFeedWrap').style.display = '';
+  document.getElementById('postsList').style.display = '';
+  document.getElementById('gamesList').style.display = 'none';
+  document.getElementById('musicList').style.display = 'none';
+  document.getElementById('publicsList').style.display = 'none';
+  document.getElementById('menuNews').classList.add('active');
+  document.getElementById('menuGames').classList.remove('active');
+  document.getElementById('menuMusic').classList.remove('active');
+  document.getElementById('menuPublics').classList.remove('active');
+}
+
+function showGames() {
+  document.getElementById('mainFeedWrap').style.display = 'none';
+  document.getElementById('postsList').style.display = 'none';
+  document.getElementById('gamesList').style.display = 'flex';
+  document.getElementById('musicList').style.display = 'none';
+  document.getElementById('publicsList').style.display = 'none';
+  document.getElementById('menuGames').classList.add('active');
+  document.getElementById('menuNews').classList.remove('active');
+  document.getElementById('menuMusic').classList.remove('active');
+  document.getElementById('menuPublics').classList.remove('active');
+  renderSnakeLeaderboard();
+}
+
+// ===== ЗМЕЙКА =====
+let snakeGame = null;
+
+function openSnake() {
+  document.getElementById('snakeModal').classList.add('open');
+  document.getElementById('snakePcoins').textContent = pCoins;
+  document.getElementById('snakeOverlay').style.display = 'flex';
+  if (snakeGame) { snakeGame.stop(); snakeGame = null; }
+  renderSnakeLeaderboard();
+}
+
+function closeSnake() {
+  document.getElementById('snakeModal').classList.remove('open');
+  if (snakeGame) { snakeGame.stop(); snakeGame = null; }
+}
+
+function startSnake() {
+  document.getElementById('snakeOverlay').style.display = 'none';
+  document.getElementById('snakeRewardMsg').classList.remove('show');
+  if (snakeGame) snakeGame.stop();
+  snakeGame = window._snakeGame = new SnakeGame('snakeCanvas', {
+    onScore: (score, apples) => {
+      document.getElementById('snakeScore').textContent = score;
+      document.getElementById('snakeApples').textContent = apples;
+      document.getElementById('snakeNext').textContent = Math.max(0, 5 - (apples % 5));
+    },
+    onReward: async () => {
+      try {
+        const res = await api('POST', '/pcoins/earn', {});
+        pCoins = res.pcoins;
+        updatePCoins();
+        document.getElementById('snakePcoins').textContent = pCoins;
+        const msg = document.getElementById('snakeRewardMsg');
+        msg.classList.add('show');
+        setTimeout(() => msg.classList.remove('show'), 2500);
+      } catch(e) { console.error('Ошибка начисления:', e); }
+    },
+    onGameOver: async (score, apples) => {
+      await saveSnakeScore(score);
+      const overlay = document.getElementById('snakeOverlay');
+      overlay.innerHTML = `
+        <h3>💀 Игра окончена!</h3>
+        <p>Счёт: ${score} | Яблок: ${apples}</p>
+        <button class="btn-snake-start" onclick="startSnake()">Играть снова</button>
+      `;
+      overlay.style.display = 'flex';
+    }
+  });
+  snakeGame.start();
+}
+
+class SnakeGame {
+  constructor(canvasId, callbacks) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this.cb = callbacks;
+    this.CELL = 20;
+    this.COLS = this.canvas.width / this.CELL;
+    this.ROWS = this.canvas.height / this.CELL;
+    this.reset();
+    this._keyHandler = e => this.handleKey(e);
+    document.addEventListener('keydown', this._keyHandler);
+  }
+  reset() {
+    this.snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+    this.dir = {x:1,y:0};
+    this.nextDir = {x:1,y:0};
+    this.apple = this.randomApple();
+    this.score = 0;
+    this.apples = 0;
+    this.applesForCoin = 5;
+    this.speed = 150;
+    this.running = false;
+    this.interval = null;
+  }
+  randomApple() {
+    let pos;
+    do {
+      pos = {x: Math.floor(Math.random()*this.COLS), y: Math.floor(Math.random()*this.ROWS)};
+    } while (this.snake.some(s => s.x===pos.x && s.y===pos.y));
+    return pos;
+  }
+  start() {
+    this.running = true;
+    this.interval = setInterval(() => this.tick(), this.speed);
+    this.draw();
+  }
+  stop() {
+    this.running = false;
+    if (this.interval) clearInterval(this.interval);
+    document.removeEventListener('keydown', this._keyHandler);
+  }
+  handleKey(e) {
+    const map = {
+      ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1}, ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+      w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0},
+      W:{x:0,y:-1}, S:{x:0,y:1}, A:{x:-1,y:0}, D:{x:1,y:0},
+    };
+    const nd = map[e.key];
+    if (nd) {
+      if (!(nd.x === -this.dir.x && nd.y === -this.dir.y)) this.nextDir = nd;
+      e.preventDefault();
+    }
+  }
+  tick() {
+    if (!this.running) return;
+    this.dir = this.nextDir;
+    const head = {x: this.snake[0].x + this.dir.x, y: this.snake[0].y + this.dir.y};
+    // Стена
+    if (head.x < 0 || head.x >= this.COLS || head.y < 0 || head.y >= this.ROWS) {
+      this.gameOver(); return;
+    }
+    // Сама себя
+    if (this.snake.some(s => s.x===head.x && s.y===head.y)) {
+      this.gameOver(); return;
+    }
+    this.snake.unshift(head);
+    if (head.x === this.apple.x && head.y === this.apple.y) {
+      this.apples++;
+      this.score += 10;
+      this.apple = this.randomApple();
+      // Награда каждые 5 яблок
+      if (this.apples % this.applesForCoin === 0) this.cb.onReward();
+      // Ускорение
+      if (this.apples % 5 === 0 && this.speed > 60) {
+        this.speed = Math.max(60, this.speed - 10);
+        clearInterval(this.interval);
+        this.interval = setInterval(() => this.tick(), this.speed);
+      }
+    } else {
+      this.snake.pop();
+    }
+    this.cb.onScore(this.score, this.apples);
+    this.draw();
+  }
+  gameOver() {
+    this.stop();
+    this.cb.onGameOver(this.score, this.apples);
+  }
+  draw() {
+    const ctx = this.ctx;
+    const C = this.CELL;
+    // Фон
+    ctx.fillStyle = '#0f0f23';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Сетка
+    ctx.strokeStyle = 'rgba(74,118,168,0.1)';
+    ctx.lineWidth = 0.5;
+    for (let x=0; x<this.COLS; x++) { ctx.beginPath(); ctx.moveTo(x*C,0); ctx.lineTo(x*C,this.canvas.height); ctx.stroke(); }
+    for (let y=0; y<this.ROWS; y++) { ctx.beginPath(); ctx.moveTo(0,y*C); ctx.lineTo(this.canvas.width,y*C); ctx.stroke(); }
+    // Яблоко
+    const ax = this.apple.x*C, ay = this.apple.y*C;
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath(); ctx.arc(ax+C/2, ay+C/2, C/2-2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#27ae60'; ctx.fillRect(ax+C/2-1, ay+1, 3, 5);
+    // Змейка
+    this.snake.forEach((seg, i) => {
+      const sx = seg.x*C, sy = seg.y*C;
+      const grad = ctx.createLinearGradient(sx, sy, sx+C, sy+C);
+      if (i === 0) { grad.addColorStop(0,'#5eead4'); grad.addColorStop(1,'#0891b2'); }
+      else { grad.addColorStop(0,'#4a76a8'); grad.addColorStop(1,'#2a5885'); }
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx+1, sy+1, C-2, C-2);
+      if (i === 0) {
+        // Глаза
+        ctx.fillStyle = '#fff';
+        const eyeOff = this.dir.x !== 0 ? [{dx:C*0.65,dy:C*0.3},{dx:C*0.65,dy:C*0.65}] : [{dx:C*0.3,dy:C*0.35},{dx:C*0.65,dy:C*0.35}];
+        eyeOff.forEach(e => { ctx.beginPath(); ctx.arc(sx+e.dx, sy+e.dy, 2, 0, Math.PI*2); ctx.fill(); });
+      }
+    });
+  }
+}
+
+// ===== ТОП ОЧКОВ ЗМЕЙКИ (через серверный API) =====
+async function saveSnakeScore(score) {
+  if (score <= 0) return;
+  try {
+    await api('POST', '/snake/score', { score });
+    renderSnakeLeaderboard();
+  } catch(e) { console.error('Ошибка сохранения рекорда:', e); }
+}
+
+async function renderSnakeLeaderboard() {
+  const els = [document.getElementById('snakeLeaderboard'), document.getElementById('snakeLeaderboardModal')].filter(Boolean);
+  if (!els.length) return;
+  try {
+    const leaderboard = await api('GET', '/snake/leaderboard');
+    const medals = ['gold','silver','bronze'];
+    const html = !leaderboard.length
+      ? '<div class="snake-top-empty">Рекордов пока нет</div>'
+      : leaderboard.map((e, i) => `
+        <div class="snake-top-row">
+          <span class="snake-top-pos ${medals[i]||''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1+'.'}</span>
+          <span class="snake-top-name">${escHtml(e.name)}${e.name===currentUser?' <b style="color:#4a76a8">(вы)</b>':''}</span>
+          <span class="snake-top-score">${e.score}</span>
+        </div>`).join('');
+    els.forEach(el => el.innerHTML = html);
+  } catch(e) {
+    console.error('Ошибка загрузки лидерборда:', e);
+    els.forEach(el => el.innerHTML = '<div class="snake-top-empty">Ошибка загрузки</div>');
+  }
+}
+
+// ===== МОБИЛЬНОЕ УПРАВЛЕНИЕ ЗМЕЙКОЙ =====
+function dpadPress(dir) {
+  if (!window._snakeGame || !window._snakeGame.running) return;
+  const map = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+  const nd = map[dir];
+  if (nd && !(nd.x === -window._snakeGame.dir.x && nd.y === -window._snakeGame.dir.y)) {
+    window._snakeGame.nextDir = nd;
+  }
+}
+
+// Свайп поддержка
+(function() {
+  let tx = 0, ty = 0;
+  document.addEventListener('touchstart', function(e) {
+    if (!e.target.closest('#snakeModal')) return;
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', function(e) {
+    if (!e.target.closest('.snake-canvas-container')) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) dpadPress(dx > 0 ? 'right' : 'left');
+    else dpadPress(dy > 0 ? 'down' : 'up');
+  }, { passive: true });
+})();
+
+// ===== ПОДВАЛ МЬЮЗИК =====
+const MUSIC_BASE_COST = 3;
+const MUSIC_GIF_EXTRA = 3;
+let pendingTrackData = null;
+let pendingCoverData = null;
+let pendingCoverIsGif = false;
+
+function showMusic() {
+  document.getElementById('mainFeedWrap').style.display = 'none';
+  document.getElementById('postsList').style.display = 'none';
+  document.getElementById('gamesList').style.display = 'none';
+  document.getElementById('musicList').style.display = 'flex';
+  document.getElementById('publicsList').style.display = 'none';
+  document.getElementById('menuMusic').classList.add('active');
+  document.getElementById('menuNews').classList.remove('active');
+  document.getElementById('menuGames').classList.remove('active');
+  document.getElementById('menuPublics').classList.remove('active');
+  loadMusicTracks();
+}
+
+// ===== ПАБЛИКИ =====
+let pendingPublicAva = null;
+
+function showPublics() {
+  document.getElementById('mainFeedWrap').style.display = 'none';
+  document.getElementById('postsList').style.display = 'none';
+  document.getElementById('gamesList').style.display = 'none';
+  document.getElementById('musicList').style.display = 'none';
+  document.getElementById('publicsList').style.display = 'flex';
+  document.getElementById('menuPublics').classList.add('active');
+  document.getElementById('menuNews').classList.remove('active');
+  document.getElementById('menuGames').classList.remove('active');
+  document.getElementById('menuMusic').classList.remove('active');
+  renderPublics();
+}
+
+function loadPublicsData() {
+  try { return JSON.parse(localStorage.getItem('pelmeniPublics') || '[]'); } catch(e) { return []; }
+}
+function savePublicsData(list) {
+  localStorage.setItem('pelmeniPublics', JSON.stringify(list));
+}
+
+function renderPublics() {
+  const list = loadPublicsData();
+  const el = document.getElementById('publicsListContent');
+  if (!list.length) {
+    el.innerHTML = '<div class="publics-empty">Пабликов пока нет — создай первый!</div>';
+    return;
+  }
+  const joined = JSON.parse(localStorage.getItem('pelmeniJoined') || '[]');
+  el.innerHTML = list.map(p => {
+    const isJoined = joined.includes(p.id);
+    const avaHtml = p.ava
+      ? `<img src="${p.ava}" alt="ава">`
+      : `<span>${escHtml(p.name[0].toUpperCase())}</span>`;
+    return `
+    <div class="public-card">
+      <div class="public-card-head">
+        <div class="public-card-ava">${avaHtml}</div>
+        <div class="public-card-info">
+          <div class="public-card-name">${escHtml(p.name)}</div>
+          <div class="public-card-creator">Создал: ${escHtml(p.creator)}</div>
+        </div>
+      </div>
+      ${p.desc ? `<div class="public-card-desc">${escHtml(p.desc)}</div>` : ''}
+      <div class="public-card-footer">
+        <span class="public-card-members">👥 ${p.members} участников</span>
+        <button class="btn-public-join ${isJoined ? 'joined' : ''}" onclick="toggleJoinPublic('${p.id}', this)">
+          ${isJoined ? '− Выйти' : '+ Вступить'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleJoinPublic(id, btn) {
+  const list = loadPublicsData();
+  const pub = list.find(p => p.id === id);
+  if (!pub) return;
+  const joined = JSON.parse(localStorage.getItem('pelmeniJoined') || '[]');
+  const idx = joined.indexOf(id);
+  if (idx === -1) {
+    joined.push(id);
+    pub.members++;
+    btn.textContent = '− Выйти';
+    btn.classList.add('joined');
+  } else {
+    joined.splice(idx, 1);
+    pub.members = Math.max(0, pub.members - 1);
+    btn.textContent = '+ Вступить';
+    btn.classList.remove('joined');
+  }
+  localStorage.setItem('pelmeniJoined', JSON.stringify(joined));
+  savePublicsData(list);
+  // обновим счётчик
+  const memberEl = btn.closest('.public-card-footer').querySelector('.public-card-members');
+  if (memberEl) memberEl.textContent = '👥 ' + pub.members + ' участников';
+}
+
+function openCreatePublicModal() {
+  pendingPublicAva = null;
+  document.getElementById('publicName').value = '';
+  document.getElementById('publicDesc').value = '';
+  document.getElementById('publicAvaInput').value = '';
+  document.getElementById('publicAvaZone').textContent = '🖼️ Нажми чтобы загрузить аватарку (PNG / JPEG / GIF)';
+  document.getElementById('publicAvaZone').classList.remove('has-file');
+  document.getElementById('publicAvaPreview').classList.remove('show');
+  document.getElementById('publicAvaPreview').src = '';
+  document.getElementById('publicAvaPlaceholder').style.display = 'flex';
+  document.getElementById('publicError').classList.remove('show');
+  document.getElementById('createPublicModal').classList.add('open');
+}
+
+function closeCreatePublicModal() {
+  document.getElementById('createPublicModal').classList.remove('open');
+}
+
+function onPublicAva(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const zone = document.getElementById('publicAvaZone');
+  zone.textContent = '⏳ Загрузка...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingPublicAva = e.target.result;
+    zone.textContent = '✅ ' + file.name;
+    zone.classList.add('has-file');
+    const preview = document.getElementById('publicAvaPreview');
+    preview.src = pendingPublicAva;
+    preview.classList.add('show');
+    document.getElementById('publicAvaPlaceholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function createPublic() {
+  const name = document.getElementById('publicName').value.trim();
+  const desc = document.getElementById('publicDesc').value.trim();
+  const errEl = document.getElementById('publicError');
+  errEl.classList.remove('show');
+  if (!name) { errEl.textContent = 'Введи название паблика!'; errEl.classList.add('show'); return; }
+  const list = loadPublicsData();
+  const newPub = {
+    id: 'pub_' + Date.now(),
+    name,
+    desc,
+    ava: pendingPublicAva || null,
+    creator: currentUser,
+    members: 1,
+    createdAt: new Date().toLocaleDateString('ru-RU'),
+  };
+  list.unshift(newPub);
+  savePublicsData(list);
+  // Автовступление создателя
+  const joined = JSON.parse(localStorage.getItem('pelmeniJoined') || '[]');
+  joined.push(newPub.id);
+  localStorage.setItem('pelmeniJoined', JSON.stringify(joined));
+  closeCreatePublicModal();
+  renderPublics();
+}
+
+
+function openMusicModal() {
+  pendingTrackData = null;
+  pendingCoverData = null;
+  pendingCoverIsGif = false;
+  document.getElementById('trackFileInput').value = '';
+  document.getElementById('coverFileInput').value = '';
+  document.getElementById('trackTitle').value = '';
+  document.getElementById('trackArtist').value = '';
+  const tzOne = document.getElementById('trackFileZone');
+  tzOne.textContent = '📂 Нажми чтобы выбрать аудио (MP3, OGG, WAV)';
+  tzOne.classList.remove('has-file');
+  const tzTwo = document.getElementById('coverFileZone');
+  tzTwo.textContent = '🖼️ Нажми чтобы выбрать обложку (необязательно)';
+  tzTwo.classList.remove('has-file');
+  document.getElementById('coverPreview').classList.remove('show');
+  document.getElementById('musicError').classList.remove('show');
+  document.getElementById('musicModalCoins').textContent = pCoins;
+  updateMusicCostDisplay();
+  document.getElementById('musicModal').classList.add('open');
+}
+
+function closeMusicModal() {
+  document.getElementById('musicModal').classList.remove('open');
+}
+
+function updateMusicCostDisplay() {
+  const cost = MUSIC_BASE_COST + (pendingCoverIsGif ? MUSIC_GIF_EXTRA : 0);
+  const label = pendingCoverIsGif
+    ? `3 + 3 (GIF) = <b style="font-size:14px">${cost} П-Баллов</b>`
+    : `<b style="font-size:14px">${cost} П-Балла</b>`;
+  document.getElementById('musicCostDisplay').innerHTML = label;
+}
+
+function onTrackFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const zone = document.getElementById('trackFileZone');
+  zone.textContent = '⏳ Загрузка файла...';
+  zone.classList.remove('has-file');
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingTrackData = e.target.result;
+    zone.textContent = '✅ ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' МБ)';
+    zone.classList.add('has-file');
+  };
+  reader.onerror = () => {
+    zone.textContent = '❌ Ошибка загрузки файла';
+    pendingTrackData = null;
+  };
+  reader.readAsDataURL(file);
+}
+
+function onTrackCover(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const isGif = file.type === 'image/gif';
+  pendingCoverIsGif = isGif;
+  const zone = document.getElementById('coverFileZone');
+  zone.textContent = '⏳ Загрузка обложки...';
+  zone.classList.remove('has-file');
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingCoverData = e.target.result;
+    zone.textContent = '✅ ' + file.name + (isGif ? ' — GIF +3 П-Балла ✨' : '');
+    zone.classList.add('has-file');
+    const preview = document.getElementById('coverPreview');
+    preview.src = pendingCoverData;
+    preview.classList.add('show');
+    updateMusicCostDisplay();
+    document.getElementById('musicModalCoins').textContent = pCoins;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function publishTrack() {
+  const title = document.getElementById('trackTitle').value.trim();
+  const artist = document.getElementById('trackArtist').value.trim();
+  const errEl = document.getElementById('musicError');
+  errEl.classList.remove('show');
+
+  if (!pendingTrackData) { errEl.textContent = 'Выбери аудио файл!'; errEl.classList.add('show'); return; }
+  if (!title) { errEl.textContent = 'Введи название трека!'; errEl.classList.add('show'); return; }
+  if (!artist) { errEl.textContent = 'Введи имя исполнителя!'; errEl.classList.add('show'); return; }
+
+  const cost = MUSIC_BASE_COST + (pendingCoverIsGif ? MUSIC_GIF_EXTRA : 0);
+  if (pCoins < cost) {
+    errEl.textContent = `Недостаточно П-Баллов! Нужно ${cost}, у тебя ${pCoins}.`;
+    errEl.classList.add('show');
+    return;
+  }
+
+  const btn = document.getElementById('btnPublishTrack');
+  btn.disabled = true;
+  btn.textContent = 'Публикация...';
+
+  try {
+    const res = await api('POST', '/music', {
+      title,
+      artist,
+      has_gif: pendingCoverIsGif,
+      audio_data: pendingTrackData || null,
+      cover_data: pendingCoverData || null,
+    });
+    pCoins = res.pcoins;
+    updatePCoins();
+    closeMusicModal();
+    await loadMusicTracks();
+  } catch(e) {
+    errEl.textContent = e.message || 'Ошибка публикации';
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Опубликовать';
+  }
+}
+
+async function loadMusicTracks() {
+  const el = document.getElementById('musicTracksList');
+  el.innerHTML = '<div class="music-empty">⏳ Загрузка треков...</div>';
+  try {
+    const tracks = await api('GET', '/music');
+    if (!tracks || !tracks.length) {
+      el.innerHTML = '<div class="music-empty">🎵 Треков пока нет — будь первым!</div>';
+      return;
+    }
+    renderMusicTracks(tracks);
+    // Подгружаем обложки (уже в ответе) и аудио (отдельный запрос)
+    for (const track of tracks) {
+      try {
+        if (track.cover_data) {
+          const cardEl = document.getElementById('music-card-' + track.id);
+          if (cardEl) {
+            const img = cardEl.querySelector('.music-cover-img');
+            const ph = cardEl.querySelector('.music-cover-placeholder');
+            if (img) { img.src = track.cover_data; img.style.display = 'block'; }
+            if (ph) ph.style.display = 'none';
+          }
         }
-        for r in rows
-    ]
+        const audioRes = await api('GET', '/music/' + track.id + '/audio');
+        if (audioRes && audioRes.audio_data) {
+          const cardEl = document.getElementById('music-card-' + track.id);
+          if (cardEl) {
+            const audio = cardEl.querySelector('audio');
+            if (audio) {
+              audio.src = audioRes.audio_data;
+              audio.removeAttribute('disabled');
+            }
+          }
+        }
+      } catch(e) {}
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="music-empty">❌ Ошибка загрузки треков</div>';
+  }
+}
 
+function renderMusicTracks(tracks) {
+  const el = document.getElementById('musicTracksList');
+  el.innerHTML = tracks.map(t => `
+    <div class="music-track-card" id="music-card-${t.id}">
+      <div class="music-track-head">
+        <div class="music-cover-placeholder">🎵</div>
+        <img class="music-cover-img music-cover" src="" alt="обложка" style="display:none">
+        <div class="music-meta">
+          <div class="music-title">${escHtml(t.title)}</div>
+          <div class="music-artist">🎤 ${escHtml(t.artist)}</div>
+          <div class="music-pub-info">Загрузил: ${escHtml(t.author)} · ${escHtml(t.time)}${t.hasGif ? '<span class="music-gif-badge">GIF</span>' : ''}</div>
+        </div>
+      </div>
+      <div class="music-player-wrap">
+        <audio controls preload="none" disabled style="width:100%">Ваш браузер не поддерживает аудио</audio>
+      </div>
+    </div>
+  `).join('');
+}
 
-@app.get("/music/{track_id}/audio")
-async def get_music_audio(track_id: str):
-    row = await database.fetch_one(
-        music_tracks_table.select().where(music_tracks_table.c.id == track_id)
-    )
-    if not row or not row["audio_data"]:
-        raise HTTPException(404, "Аудио не найдено")
-    return {"audio_data": row["audio_data"]}
+// ===== АВТОВОССТАНОВЛЕНИЕ СЕССИИ =====
+(async function restoreSession() {
+  const token = localStorage.getItem('token');
+  const login = localStorage.getItem('login');
+  if (!token || !login) return;
+  try {
+    const res = await fetch(API + '/pcoins/' + login, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) { localStorage.removeItem('token');
+  localStorage.removeItem('login'); localStorage.removeItem('login'); return; }
+    const data = await res.json();
+    pCoins = data.pcoins;
+    enterApp(login);
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>
