@@ -1115,7 +1115,7 @@ async function saveEditPost(id) {
   } catch(e) { alert('Ошибка: ' + e.message); }
 }
 
-
+async function toggleLike(id) {
   try {
     const res = await api('POST', `/posts/${id}/like`, { user: currentUser });
     // Обновляем только этот пост локально
