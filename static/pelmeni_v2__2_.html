@@ -745,11 +745,16 @@ async function loadPCoins() {
   } catch(e) { console.error("Ошибка загрузки П-баллов:", e); }
 }
 
+let loadPostsInFlight = false;
 async function loadPosts() {
+  if (loadPostsInFlight) return;          // не запускаем, если уже идёт запрос
+  loadPostsInFlight = true;
   try {
-    allPosts = await api('GET', '/posts');
+    const fresh = await api('GET', '/posts');
+    allPosts = fresh;
     renderPosts();
   } catch(e) { console.error('Ошибка загрузки постов:', e); }
+  finally { loadPostsInFlight = false; }
 }
 
 async function loadAccounts() {
@@ -946,8 +951,8 @@ function renderPosts() {
   }
 
   // Убираем заглушку "нет постов" если она есть
-  const stub = list.querySelector('div:not(.post)');
-  if (stub) stub.remove();
+  // Убираем только прямых детей, которые не являются постами (не трогаем потомков внутри постов)
+  list.querySelectorAll(':scope > :not(.post)').forEach(el => el.remove());
 
   const newIds = new Set(allPosts.map(p => p.id));
 
