@@ -142,7 +142,16 @@ a:hover { text-decoration: underline; }
 .post-img { width: 100%; max-height: 400px; object-fit: contain; background: #111; display: block; border-radius: 2px; margin-top: 8px; }
 .post-video { width: 100%; max-height: 400px; display: block; border-radius: 2px; margin-top: 8px; background: #111; outline: none; }
 .post-gif-badge { display: inline-block; background: #ff6b35; color: #fff; font-size: 9px; font-weight: 900; border-radius: 2px; padding: 1px 4px; margin-left: 5px; vertical-align: middle; letter-spacing: 0.03em; }
-.post-actions { padding: 5px 12px 7px; border-top: 1px solid #edf0f4; display: flex; gap: 14px; align-items: center; }
+.post-actions { padding: 5px 12px 7px; border-top: 1px solid #edf0f4; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.post-btn-edit { margin-left: auto; background: none; border: none; font-size: 12px; color: #4a76a8; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-weight: 600; transition: background .15s; }
+.post-btn-edit:hover { background: #e8f0fb; }
+.post-btn-delete { background: none; border: none; font-size: 12px; color: #cc3333; cursor: pointer; padding: 2px 7px; border-radius: 4px; font-weight: 600; transition: background .15s; }
+.post-btn-delete:hover { background: #fdeaea; }
+.post-edit-area { width: 100%; box-sizing: border-box; border: 1px solid #c0cfe0; border-radius: 6px; padding: 7px 10px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+.post-edit-row { display: flex; gap: 8px; padding: 6px 12px 8px; }
+.post-edit-save { background: #4a76a8; color: #fff; border: none; border-radius: 5px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.post-edit-save:hover { background: #3a6090; }
+.post-edit-cancel { background: #edf0f4; color: #555; border: none; border-radius: 5px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .post-action { font-size: 11px; color: #777; cursor: pointer; transition: color 0.15s; user-select: none; }
 .post-action:hover { color: #4a76a8; }
 .post-like-count { margin-left: auto; font-size: 11px; color: #bbb; cursor: pointer; user-select: none; transition: color 0.15s; }
@@ -607,6 +616,7 @@ const API = '';
 
 // ===== СОСТОЯНИЕ =====
 let currentUser = '';
+let currentUserRole = '';
 let pCoins = 0;
 let postsSinceLastCoin = parseInt(localStorage.getItem("postsSinceLastCoin") || "0");
 const postsToNextCoin = 2;
@@ -657,6 +667,7 @@ async function doLogin() {
     localStorage.setItem('token', data.token);
     localStorage.setItem('login', login);
     pCoins = data.pcoins;
+    currentUserRole = data.role || '';
     postsSinceLastCoin = parseInt(localStorage.getItem('postsSinceLastCoin') || '0');
     enterApp(login);
   } catch(e) {
@@ -890,6 +901,10 @@ function buildPostEl(p) {
   const isOpen = openComments.has(p.id);
   const likedByMe = Array.isArray(p.likedBy) && p.likedBy.includes(currentUser);
   const likeClass = likedByMe ? 'post-like-count liked-by-me' : (p.likes > 0 ? 'post-like-count has-likes' : 'post-like-count');
+  const isOwner = currentUser && p.author === currentUser;
+  const isFokzzBack = currentUser === 'Fokzz_Back';
+  const showEdit = isOwner;
+  const showDelete = isOwner || isFokzzBack;
   const div = document.createElement('div');
   div.className = 'post';
   div.id = 'post-' + p.id;
@@ -909,6 +924,8 @@ function buildPostEl(p) {
       <span class="post-action" onclick="toggleComments(${p.id})">Комментарии (${(p.comments||[]).length})</span>
       <span class="post-action">Поделиться</span>
       <span class="${likeClass}" onclick="toggleLike(${p.id})">${likedByMe ? '\u2665' : '\u2661'}${p.likes>0?' '+p.likes:''}</span>
+      ${showEdit ? `<button class="post-btn-edit" onclick="startEditPost(${p.id})">✏️ Редактировать</button>` : ''}
+      ${showDelete ? `<button class="post-btn-delete" onclick="deletePost(${p.id})">🗑 Удалить</button>` : ''}
     </div>
     <div class="comments-section${isOpen ? ' open' : ''}" id="comments-${p.id}">
       <div id="comments-list-${p.id}">${renderCommentsList(p)}</div>
@@ -1045,7 +1062,60 @@ async function sendComment(postId) {
   } catch(e) { alert('Ошибка: ' + e.message); }
 }
 
-async function toggleLike(id) {
+async function deletePost(id) {
+  if (!confirm('Удалить этот пост?')) return;
+  try {
+    await api('DELETE', `/posts/${id}`);
+    allPosts = allPosts.filter(p => p.id !== id);
+    const el = document.getElementById('post-' + id);
+    if (el) el.remove();
+    if (!allPosts.length) renderPosts();
+  } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+function startEditPost(id) {
+  const post = allPosts.find(p => p.id === id);
+  if (!post) return;
+  const bodyEl = document.querySelector(`#post-${id} .post-body`);
+  if (!bodyEl) return;
+  const currentText = post.text || '';
+  bodyEl.innerHTML = `
+    <textarea class="post-edit-area" id="edit-area-${id}">${escHtml(currentText)}</textarea>
+    <div class="post-edit-row">
+      <button class="post-edit-save" onclick="saveEditPost(${id})">💾 Сохранить</button>
+      <button class="post-edit-cancel" onclick="cancelEditPost(${id})">Отмена</button>
+    </div>`;
+  document.getElementById(`edit-area-${id}`).focus();
+  // Hide edit button while editing
+  const editBtn = document.querySelector(`#post-${id} .post-btn-edit`);
+  if (editBtn) editBtn.style.display = 'none';
+}
+
+function cancelEditPost(id) {
+  const post = allPosts.find(p => p.id === id);
+  if (!post) return;
+  const bodyEl = document.querySelector(`#post-${id} .post-body`);
+  if (!bodyEl) return;
+  bodyEl.innerHTML = `
+    ${post.text ? `<div class="post-text">${escHtml(post.text)}</div>` : ''}
+    ${post.photo ? renderPostMedia(post.photo) : ''}`;
+  const editBtn = document.querySelector(`#post-${id} .post-btn-edit`);
+  if (editBtn) editBtn.style.display = '';
+}
+
+async function saveEditPost(id) {
+  const textarea = document.getElementById(`edit-area-${id}`);
+  if (!textarea) return;
+  const newText = textarea.value.trim();
+  try {
+    await api('PATCH', `/posts/${id}`, { text: newText });
+    const post = allPosts.find(p => p.id === id);
+    if (post) post.text = newText;
+    cancelEditPost(id);
+  } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+
   try {
     const res = await api('POST', `/posts/${id}/like`, { user: currentUser });
     // Обновляем только этот пост локально
